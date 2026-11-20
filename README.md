@@ -39,6 +39,16 @@ Los precios y el stock se pueden editar desde el panel sin tocar el código.
 `https://<servicio>.onrender.com/panel` — entrar con `ADMIN_TOKEN`.
 Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (inicial, usado, quedan, "Agotado", valor por defecto de cada noche), **Carta** (precios simple/doble/triple y disponibilidad), **Chats** (responder, pausar/reactivar bot, marcar resuelto).
 
+## Despliegue actual (20/11/2026)
+
+- **Servicio Render:** `clubdelaburger-whatsapp`
+- **URL:** https://clubdelaburger-whatsapp.onrender.com
+- **Panel:** https://clubdelaburger-whatsapp.onrender.com/panel (la clave está en Render → servicio → Environment → `ADMIN_TOKEN`)
+- **Base:** `clubdelaburger-db` (Postgres, Virginia)
+- **Zernio:** cuenta `6a8e6dfb77555aae018cfef0` — WhatsApp **+54 9 264 317-9759**
+- **Webhook Zernio:** `6b005471045434d0c3a89322` → `https://clubdelaburger-whatsapp.onrender.com/webhooks/zernio`
+- **Repositorio:** https://github.com/alessca1/botwhatsapp-clubdelaburger
+
 ## Despliegue en Render + Zernio (número 264 317-9759)
 
 1. Subir este proyecto a un repo nuevo y crear el Blueprint con `render.yaml` (servicio `clubdelaburger-whatsapp` + base `clubdelaburger-db`).
