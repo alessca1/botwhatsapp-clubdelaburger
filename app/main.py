@@ -3,17 +3,20 @@ import hashlib
 import hmac
 import json
 import time
+from html import escape
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
-from fastapi import FastAPI, Request, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request, Depends, HTTPException, File, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from app.config import Settings
-from app.db import Database, Conversation, Content, Event, Outbox, Message, Order, Product, ProductVariant, Insumo, DailyStock, Audit
+from app.db import (Database, Conversation, Content, Event, Outbox, Message, Order, Product,
+                    ProductVariant, ProductImage, Insumo, DailyStock, Audit)
 from app.hours import Schedule
+from app.menu import load_items, money
 from app.service import Bot
 from app.zernio import ingest_zernio
 from app import stock as stockmod
@@ -59,7 +62,10 @@ def create_app(settings=None, run_worker=True, llm=None):
     @app.middleware('http')
     async def headers(request, call_next):
         response = await call_next(request)
-        response.headers['Cache-Control'] = 'no-store'
+        if request.url.path.startswith('/menu/image/'):
+            response.headers.setdefault('Cache-Control', 'public, max-age=3600')
+        else:
+            response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers.setdefault('X-Frame-Options', 'DENY')
         return response
@@ -80,6 +86,98 @@ def create_app(settings=None, run_worker=True, llm=None):
             return {'status': 'ok'}
         except Exception:
             raise HTTPException(503, 'Servicio no disponible')
+
+    # ---------- public menu
+    def _product_kind(category):
+        if category.startswith('Burgers'):
+            return 'burger'
+        if category.startswith('Combos'):
+            return 'combo'
+        if category == 'Dips':
+            return 'dip'
+        return 'extra'
+
+    def _fallback_html(items, negocio):
+        groups = {}
+        for item in items:
+            if not item.available or item.price is None:
+                continue
+            groups.setdefault(item.category, []).append(item)
+        blocks = []
+        for category, rows in groups.items():
+            lines = []
+            for item in rows:
+                if item.variants:
+                    price = ' / '.join(f'{v.name} {money(v.price)}' for v in item.variants if v.price is not None)
+                else:
+                    price = money(item.price)
+                lines.append(f'<li><span>{escape(item.name)}</span><b>{escape(price)}</b></li>')
+            blocks.append(f'<div class="noscript-group"><h3>{escape(category)}</h3><ul>{"".join(lines)}</ul></div>')
+        phone = str(negocio.get('business_number', ''))
+        return ('<div class="noscript-menu"><p class="noscript-title">La carta completa</p>'
+                + ''.join(blocks) +
+                f'<p>Para pedir, escribinos al <a href="https://wa.me/{escape(phone)}">'
+                f'{escape(negocio.get("business_number_display", ""))}</a>.</p></div>')
+
+    @app.get('/carta')
+    @app.get('/carta/', include_in_schema=False)
+    def carta_page():
+        html = (STATIC / 'carta.html').read_text(encoding='utf-8')
+        with db.session() as s:
+            negocio = bot.negocio(s)
+            items = load_items(s)
+        return HTMLResponse(html.replace('<!--MENU_FALLBACK-->', _fallback_html(items, negocio)))
+
+    @app.get('/carta/{name}')
+    def carta_asset(name: str):
+        if name not in {'carta.css', 'carta.js', 'favicon.svg'}:
+            raise HTTPException(404)
+        return FileResponse(STATIC / name)
+
+    @app.get('/public/menu')
+    def public_menu():
+        with db.session() as s:
+            negocio = bot.negocio(s)
+            items = load_items(s)
+            images = {row.product_id: row.updated for row in s.scalars(select(ProductImage))}
+            schedule = Schedule(negocio)
+            products = []
+            for item in items:
+                if item.price is None and not item.variants:
+                    continue
+                products.append({
+                    'id': item.id, 'code': item.code, 'kind': _product_kind(item.category),
+                    'category': item.category, 'name': item.name, 'description': item.description,
+                    'price': item.price, 'available': item.available, 'days': item.days,
+                    'variants': [{'id': v.id, 'name': v.name, 'price': v.price}
+                                 for v in item.variants],
+                    'image_url': (f'/menu/image/{item.id}?v={int(images[item.id])}'
+                                  if item.id in images else None),
+                })
+            return {
+                'business': {
+                    'name': negocio.get('business_name'), 'address': negocio.get('address'),
+                    'phone': negocio.get('business_number'),
+                    'phone_display': negocio.get('business_number_display'),
+                    'maps_url': negocio.get('maps_url'), 'instagram': negocio.get('instagram'),
+                    'menu_url': negocio.get('menu_url'), 'hours': schedule.hours_text(),
+                    'last_order': f"{schedule.last_order:%H:%M}", 'intake': f"{schedule.intake:%H:%M}",
+                    'delivery_note': negocio.get('delivery_note'),
+                    'takeaway_note': negocio.get('takeaway_note'),
+                    'payment_methods': negocio.get('payment_methods') or [],
+                    'transfer_alias': negocio.get('transfer_alias'),
+                },
+                'products': products,
+            }
+
+    @app.get('/menu/image/{product_id}')
+    def menu_image(product_id: str):
+        with db.session() as s:
+            row = s.get(ProductImage, product_id)
+            if not row:
+                raise HTTPException(404)
+            return Response(row.data, media_type=row.content_type,
+                            headers={'Cache-Control': 'public, max-age=3600'})
 
     @app.post('/webhooks/zernio')
     async def zernio_webhook(request: Request):
@@ -231,9 +329,11 @@ def create_app(settings=None, run_worker=True, llm=None):
             for v in s.scalars(select(ProductVariant).order_by(ProductVariant.position)):
                 variants.setdefault(v.product_id, []).append(
                     {'id': v.id, 'name': v.name, 'price': v.price, 'recipe': json.loads(v.recipe)})
+            images = {row.product_id: row.updated for row in s.scalars(select(ProductImage))}
             return [{'id': p.id, 'category': p.category, 'name': p.name, 'description': p.description,
                      'price': p.price, 'available': p.available, 'days': json.loads(p.days),
-                     'recipe': json.loads(p.recipe), 'variants': variants.get(p.id, [])}
+                     'recipe': json.loads(p.recipe), 'variants': variants.get(p.id, []),
+                     'image_url': (f'/menu/image/{p.id}?v={int(images[p.id])}' if p.id in images else None)}
                     for p in s.scalars(select(Product).order_by(Product.position))]
 
     class ProductBody(BaseModel):
@@ -280,6 +380,38 @@ def create_app(settings=None, run_worker=True, llm=None):
                 p.recipe = json.dumps(body.recipe)
             s.add(Audit(action='product_updated', target=product_id))
             s.commit()
+        return {'saved': True}
+
+    @app.post('/admin/menu/{product_id}/image', dependencies=[Depends(admin)])
+    async def upload_menu_image(product_id: str, file: UploadFile = File(...)):
+        content_type = (file.content_type or '').lower()
+        if content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
+            raise HTTPException(400, 'La foto debe ser JPG, PNG o WebP')
+        data = await file.read(5_000_001)
+        if len(data) > 5_000_000:
+            raise HTTPException(413, 'La foto no puede superar 5 MB')
+        with db.session() as s:
+            if not s.get(Product, product_id):
+                raise HTTPException(404, 'Producto inexistente')
+            row = s.get(ProductImage, product_id)
+            if row is None:
+                row = ProductImage(product_id=product_id, content_type=content_type, data=data)
+                s.add(row)
+            else:
+                row.content_type, row.data, row.updated = content_type, data, time.time()
+            s.add(Audit(action='product_image_updated', target=product_id))
+            s.commit()
+            version = int(row.updated)
+        return {'saved': True, 'image_url': f'/menu/image/{product_id}?v={version}'}
+
+    @app.delete('/admin/menu/{product_id}/image', dependencies=[Depends(admin)])
+    def delete_menu_image(product_id: str):
+        with db.session() as s:
+            row = s.get(ProductImage, product_id)
+            if row:
+                s.delete(row)
+                s.add(Audit(action='product_image_deleted', target=product_id))
+                s.commit()
         return {'saved': True}
 
     @app.get('/admin/content', dependencies=[Depends(admin)])

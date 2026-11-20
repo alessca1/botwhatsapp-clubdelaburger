@@ -152,6 +152,39 @@ def test_bad_signature_rejected(app):
     assert r.status_code == 403
 
 
+def test_public_menu_page_and_photo_upload(app):
+    import base64
+    client = app.state.client
+    page = client.get('/carta')
+    assert page.status_code == 200
+    assert 'El Club de la Burger' in page.text and 'La carta' in page.text
+    assert client.get('/carta/carta.css').status_code == 200
+    assert client.get('/carta/carta.js').status_code == 200
+    menu = client.get('/public/menu').json()
+    assert menu['business']['phone'] == '5492643179759'
+    assert menu['business']['phone_display'] == '+54 9 264 317-9759'
+    assert len(menu['products']) == 21
+    american = next(p for p in menu['products'] if p['id'] == 'american')
+    assert american['kind'] == 'burger' and american['image_url'] is None
+    assert [v['name'] for v in american['variants']] == ['Simple', 'Doble', 'Triple']
+    png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=')
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    r = client.post('/admin/menu/american/image', files={'file': ('foto.png', png, 'image/png')}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()['image_url'].startswith('/menu/image/american')
+    image = client.get('/menu/image/american')
+    assert image.status_code == 200 and image.content == png
+    assert image.headers['content-type'] == 'image/png'
+    assert next(p for p in client.get('/public/menu').json()['products'] if p['id'] == 'american')['image_url']
+    assert client.delete('/admin/menu/american/image', headers=h).status_code == 200
+    assert client.get('/menu/image/american').status_code == 404
+
+
+def test_bot_sends_menu_link(app):
+    out = send(app, 'carta', WED_21)
+    assert 'La carta completa' in out and 'https://clubdelaburger-whatsapp.onrender.com/carta' in out
+
+
 def test_parse_items_and_variants(app):
     with app.state.db.session() as s:
         items = load_items(s)

@@ -279,11 +279,18 @@ class Flow:
         if not sd:
             window = self.schedule.order_window(self.now)
             sd = window.service_date
-        text = menu_text(self.items, sd)
-        if sd:
-            out = self._sold_out(sd)
+        out = self._sold_out(sd) if sd else []
+        url = self.negocio.get('menu_url')
+        if url:
+            text = f'🍔 *La carta completa, con fotos y precios:*\n{url}'
             if out:
                 text += '\n\n❌ Agotado por hoy: ' + ', '.join(out)
+            return self.say(text + '\n\n¿Querés que te tome el pedido?',
+                            [{'title': 'Hacer pedido', 'payload': 'pedir'},
+                             {'title': 'Ver combos', 'payload': 'combos'}])
+        text = menu_text(self.items, sd)
+        if out:
+            text += '\n\n❌ Agotado por hoy: ' + ', '.join(out)
         return self.say(text)
 
     def _sold_out(self, sd):

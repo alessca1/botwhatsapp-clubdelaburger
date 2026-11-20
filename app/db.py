@@ -99,6 +99,15 @@ class ProductVariant(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class ProductImage(Base):
+    """Public menu photo uploaded from the panel. Stored in Postgres so it survives deploys."""
+    __tablename__ = 'product_images'
+    product_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    content_type: Mapped[str] = mapped_column(String(40))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    updated: Mapped[float] = mapped_column(Float, default=time.time)
+
+
 class Insumo(Base):
     __tablename__ = 'insumos'
     id: Mapped[str] = mapped_column(String(40), primary_key=True)
@@ -182,7 +191,7 @@ class Database:
         with self.session() as s:
             # Version marker: imports the completed questionnaire once, then never
             # overwrites prices or FAQ edited from the panel.
-            seed = s.get(Content, 'seed:2026-11-20')
+            seed = s.get(Content, 'seed:2026-11-20-carta-v1')
             negocio = ROOT / 'content/negocio.json'
             current = s.get(Content, 'negocio')
             if not current:
@@ -225,7 +234,7 @@ class Database:
                     row.unit = i.get('unidad', 'u')
                     row.default_daily = i.get('stock_diario')
             if not seed:
-                s.add(Content(id='seed:2026-11-20', body=json.dumps({'seeded_at': time.time()})))
+                s.add(Content(id='seed:2026-11-20-carta-v1', body=json.dumps({'seeded_at': time.time()})))
             # A stopped process may have sent these messages; never replay blindly.
             for row in s.query(Outbox).filter_by(status='sending'):
                 row.status = 'uncertain'

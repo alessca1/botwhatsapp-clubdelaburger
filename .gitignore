@@ -6,4 +6,8 @@ data/
 __pycache__/
 .pytest_cache/
 *.pyc
+shots/
+.playwright-mcp/
+.hallmark/
+.taste-skill/
 ~$*.docx

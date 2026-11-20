@@ -29,6 +29,26 @@ async function api(path, options = {}) {
   return res.json();
 }
 
+async function upload(path, form) {
+  const res = await fetch(path, { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: form });
+  if (res.status === 401) { logout(); throw new Error('401'); }
+  if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.detail || res.status); }
+  return res.json();
+}
+
+async function compressPhoto(file) {
+  if (!file.type.startsWith('image/') || !window.createImageBitmap) return file;
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  if (scale === 1 && file.size < 1_200_000) return file;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86));
+  return blob || file;
+}
+
 function dateParam() { const d = $('serviceDate').value; return d ? '?service_date=' + d : ''; }
 
 function beep() {
@@ -134,14 +154,18 @@ $('stockTable').addEventListener('click', async (e) => {
 
 async function loadMenu() {
   const items = await api('/admin/menu');
-  $('menuTable').innerHTML = '<tr><th>Producto</th><th>Precio directo por variante</th><th>Disponible</th><th>Receta (insumos por unidad)</th></tr>' +
+  $('menuTable').innerHTML = '<tr><th>Producto</th><th>Precio directo por variante</th><th>Foto de la carta</th><th>Disponible</th><th>Receta (insumos por unidad)</th></tr>' +
     items.map((p) => {
       const prices = p.variants.length
         ? p.variants.map((v) => `<label class="variantRow">${esc(v.name)} <input type="number" min="0" class="variant" data-vid="${esc(v.id)}" value="${v.price ?? ''}" placeholder="sin precio"></label>`).join('')
         : `<input type="number" min="0" class="price" value="${p.price ?? ''}" placeholder="sin precio">`;
+      const photo = p.image_url
+        ? `<img class="thumb" src="${esc(p.image_url)}" alt="">`
+        : '<span class="desc">sin foto</span>';
       return `<tr data-id="${p.id}">
       <td><b>${esc(p.name)}</b>${p.days.length ? ' <span class="tag">' + esc(p.days.join(', ')) + '</span>' : ''}<div class="desc">${esc(p.description)}</div></td>
       <td>${prices} <button data-act="price">Guardar</button></td>
+      <td class="photoCell">${photo}<input type="file" class="photoFile" accept="image/jpeg,image/png,image/webp"><button data-act="photo">Subir foto</button>${p.image_url ? '<button class="ghost" data-act="removePhoto">Quitar</button>' : ''}</td>
       <td><input type="checkbox" class="avail" ${p.available ? 'checked' : ''}></td>
       <td class="desc">${Object.entries(p.recipe).map(([k, v]) => esc(k) + ' x' + v).join(', ')}</td></tr>`;
     }).join('');
@@ -149,7 +173,26 @@ async function loadMenu() {
 
 $('menuTable').addEventListener('click', async (e) => {
   const b = e.target.closest('button'); if (!b) return;
-  const row = b.closest('tr'); let body;
+  const row = b.closest('tr');
+  if (b.dataset.act === 'photo') {
+    const file = row.querySelector('.photoFile').files[0];
+    if (!file) { alert('Elegí una foto primero.'); return; }
+    try {
+      const body = await compressPhoto(file);
+      const form = new FormData();
+      form.append('file', body, body.name || 'foto.webp');
+      await upload(`/admin/menu/${row.dataset.id}/image`, form);
+      loadMenu();
+    } catch (err) { alert('No se pudo subir la foto: ' + err.message); }
+    return;
+  }
+  if (b.dataset.act === 'removePhoto') {
+    if (!confirm('¿Quitar la foto de este producto?')) return;
+    try { await api(`/admin/menu/${row.dataset.id}/image`, { method: 'DELETE' }); loadMenu(); }
+    catch (err) { alert('No se pudo quitar: ' + err.message); }
+    return;
+  }
+  let body;
   const variants = [...row.querySelectorAll('.variant')];
   if (variants.length) {
     const values = {};

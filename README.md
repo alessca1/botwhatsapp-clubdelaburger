@@ -34,10 +34,20 @@ Los precios y el stock se pueden editar desde el panel sin tocar el código.
 - **Intervención humana:** si alguien responde desde el celular (coexistencia) o desde el panel, el bot se calla `HUMAN_PAUSE_MINUTES` (5) y después retoma solo.
 - **Sin DeepSeek** (o al pasar `DEEPSEEK_DAILY_CAP`) sigue funcionando con reglas y la carta numerada ("2 de la 8").
 
+## Carta pública
+
+https://clubdelaburger-whatsapp.onrender.com/carta
+
+El bot manda este link cuando piden la carta (`carta`, `menú`, `precios`) y desde el botón "Ver carta" del saludo. La página lee precios, variantes, disponibilidad y combos desde la base (`/public/menu`), así que se actualiza sola cuando cambia el panel.
+
+- **Fotos por burger:** Panel → Carta → **Foto de la carta**. Se puede subir JPG, PNG o WebP; el panel la comprime y la guarda en Postgres. Se publica al instante en `/carta`.
+- Mientras no haya foto, la página muestra una ilustración editorial de los ingredientes con la etiqueta "foto pendiente". Cuando subís la foto real, la reemplaza.
+- Las fotos se sirven en `/menu/image/{producto}` y sobreviven a los deploys porque están en la base, no en el disco de Render.
+
 ## Panel
 
 `https://<servicio>.onrender.com/panel` — entrar con `ADMIN_TOKEN`.
-Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (inicial, usado, quedan, "Agotado", valor por defecto de cada noche), **Carta** (precios simple/doble/triple y disponibilidad), **Chats** (responder, pausar/reactivar bot, marcar resuelto).
+Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (inicial, usado, quedan, "Agotado", valor por defecto de cada noche), **Carta** (precios simple/doble/triple, disponibilidad y **foto de cada producto**), **Chats** (responder, pausar/reactivar bot, marcar resuelto).
 
 ## Despliegue actual (20/11/2026)
 
@@ -80,9 +90,9 @@ py -3.14 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
-Las 43 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio y ventana de 24 h.
+Las 45 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, subida y borrado de fotos en la base, y ventana de 24 h.
 
-El contenido se importa una sola vez con el marcador `seed:2026-11-20`; después se edita desde el panel o `PUT /admin/content`. Si se cambia `content/negocio.json` o `content/carta.json`, hay que subir el marcador de versión o editar desde el panel, para no pisar cambios hechos por el local.
+El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`; después se edita desde el panel o `PUT /admin/content`. Si se cambia `content/negocio.json` o `content/carta.json`, hay que subir el marcador de versión o editar desde el panel, para no pisar cambios hechos por el local.
 
 ## Límites conocidos
 

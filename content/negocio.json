@@ -4,6 +4,8 @@
   "business_number_display": "+54 9 264 317-9759",
   "address": "Av. Libertador 1525 (Oeste), San Juan",
   "maps_url": "https://www.google.com/maps/place/El+Club+De+La+Burger/@-31.5327808,-68.550325,17z/data=!3m1!4b1!4m6!3m5!1s0x968141b1852f7119:0x747d81307f5885!8m2!3d-31.5327854!4d-68.5477501!16s%2Fg%2F11mz02jm_l?entry=ttu",
+  "instagram": "https://www.instagram.com/elclubdelaburger24/",
+  "menu_url": "https://clubdelaburger-whatsapp.onrender.com/carta",
   "timezone": "America/Argentina/San_Juan",
   "service_days": ["lunes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
   "service_open": "20:00",

@@ -39,6 +39,9 @@ table.grid { width:100%; border-collapse:collapse; background:var(--card); borde
 .grid input[type=number] { width:96px; }
 .variantRow { display:flex; align-items:center; gap:6px; margin:2px 0; color:var(--muted); font-size:13px; }
 .variantRow input { width:90px !important; }
+.photoCell { min-width:130px; }
+.photoCell .thumb { display:block; width:86px; height:64px; object-fit:cover; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; }
+.photoCell .photoFile { display:block; width:130px; margin-bottom:6px; font-size:11px; padding:4px; }
 .grid .desc { color:var(--muted); font-size:13px; }
 .low { color:var(--warn); font-weight:700; } .zero { color:var(--red); font-weight:700; }
 .chats { display:grid; grid-template-columns:300px 1fr; gap:12px; height:calc(100vh - 110px); }
