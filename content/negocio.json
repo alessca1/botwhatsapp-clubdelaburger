@@ -1,0 +1,242 @@
+{
+  "business_name": "El Club de la Burger",
+  "business_number": "5492643179759",
+  "business_number_display": "+54 9 264 317-9759",
+  "address": "Av. Libertador 1525 (Oeste), San Juan",
+  "maps_url": "https://www.google.com/maps/place/El+Club+De+La+Burger/@-31.5327808,-68.550325,17z/data=!3m1!4b1!4m6!3m5!1s0x968141b1852f7119:0x747d81307f5885!8m2!3d-31.5327854!4d-68.5477501!16s%2Fg%2F11mz02jm_l?entry=ttu",
+  "timezone": "America/Argentina/San_Juan",
+  "service_days": ["lunes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
+  "service_open": "20:00",
+  "service_close": "01:00",
+  "last_order": "00:50",
+  "intake_open": "10:00",
+  "preorder_days_ahead": 30,
+  "first_slot_takeaway": "20:00",
+  "first_slot_delivery": "20:30",
+  "slot_minutes": 30,
+  "slot_capacity": 20,
+  "delivery_enabled": true,
+  "delivery_fee": null,
+  "delivery_note": "Hacemos delivery propio hasta 10 km a la redonda. El costo se calcula por km y te lo confirmamos por este chat antes de preparar el pedido.",
+  "delivery_radius_km": 10,
+  "delivery_minimum": 0,
+  "delivery_free_from": null,
+  "takeaway_note": "Te esperamos en el salón. La demora habitual es de 10 minutos.",
+  "takeaway_enabled": true,
+  "payment_methods": ["Efectivo", "Transferencia"],
+  "transfer_alias": "Mathias1998",
+  "transfer_holder": "Mathias De Dios Juarez Fa.",
+  "advance_payment_required": true,
+  "cash_change": true,
+  "invoice": false,
+  "card_surcharge": true,
+  "staff": ["Gabriel", "Mathias"],
+  "human_hours_from": "19:00",
+  "pedidosya": true,
+  "welcome": "¡Hola! 🍔 Bienvenido/a a *El Club de la Burger*. Soy el asistente virtual: respondo consultas las 24 hs y tomo pedidos para la noche desde las 10:00.",
+  "faq": [
+    {
+      "tema": "Horarios",
+      "keywords": ["horario", "abren", "cierran", "que dias", "hasta que hora", "ultimo pedido", "feriado"],
+      "respuesta": "Abrimos de miércoles a lunes de 20:00 a 01:00. Los martes cerramos. Abrimos feriados. Tomamos pedidos hasta las 00:50."
+    },
+    {
+      "tema": "Pedidos anticipados",
+      "keywords": ["pedido anticipado", "pedidos anticipados", "anticipado", "desde que hora", "a que hora puedo pedir", "pedir temprano", "sena", "seña"],
+      "respuesta": "Tomamos pedidos anticipados desde las 10:00 para la noche. El primer retiro es a las 20:00 y el primer delivery a las 20:30. También podés pedir para otro día. Los pedidos anticipados se abonan antes."
+    },
+    {
+      "tema": "Dirección / local",
+      "keywords": ["direccion", "donde estan", "donde queda", "ubicacion", "ubicados", "como llego"],
+      "respuesta": "Estamos en Av. Libertador 1525 (Oeste), San Juan. Tenemos salón para cenar (con reserva), tragos y juegos. Hay estacionamiento."
+    },
+    {
+      "tema": "Delivery",
+      "keywords": ["delivery", "envio", "envian", "envias", "reparto", "domicilio", "zona", "hasta donde", "10 km", "kilometros"],
+      "respuesta": "Hacemos delivery propio hasta 10 km a la redonda del local. El costo se calcula por km y te lo confirmamos por este chat. No hay pedido mínimo ni envío gratis. La demora habitual es de 15 a 20 minutos."
+    },
+    {
+      "tema": "Costo de envío",
+      "keywords": ["cuanto sale el envio", "costo de envio", "costo del envio", "precio del envio", "cobran el envio"],
+      "respuesta": "El envío se calcula por km. Te confirmamos el costo por este chat antes de preparar el pedido."
+    },
+    {
+      "tema": "Pedido mínimo y envío gratis",
+      "keywords": ["pedido minimo", "minimo de compra", "envio gratis", "envian gratis"],
+      "respuesta": "No hay pedido mínimo para delivery y no tenemos envío gratis. El costo se calcula por km."
+    },
+    {
+      "tema": "Reparto",
+      "keywords": ["quien reparte", "repartidor", "delivery propio", "cadete"],
+      "respuesta": "El delivery es propio, de El Club de la Burger."
+    },
+    {
+      "tema": "Retiro en el local",
+      "keywords": ["retiro", "retirar", "take away", "pasar a buscar", "buscar el pedido", "demora para retirar"],
+      "respuesta": "Podés retirar en el local, Av. Libertador 1525 (Oeste), San Juan. Te esperamos en el salón. La demora habitual es de 10 minutos."
+    },
+    {
+      "tema": "Pagos",
+      "keywords": ["como pago", "como puedo pagar", "medios de pago", "efectivo", "transferencia", "alias", "mercado pago", "tarjeta", "debito", "credito", "recargo", "factura", "cambio", "vuelto"],
+      "respuesta": "Aceptamos efectivo y transferencia. Alias: Mathias1998 (titular: Mathias De Dios Juarez Fa.). Los pedidos anticipados se abonan antes. El repartidor lleva cambio. No hacemos factura. Consultanos por tarjeta: tiene recargo."
+    },
+    {
+      "tema": "Combos",
+      "keywords": ["combo", "combos"],
+      "respuesta": "Los combos son válidos viernes, sábados y domingos, para delivery y retiro. Podés elegir cualquier variedad de burger menos Crispy Chicken. El dip puede ser mayonesa de ajo, barbacoa o mostaza miel. No incluyen bebida."
+    },
+    {
+      "tema": "Papas y extras",
+      "keywords": ["vienen con papas", "trae papas", "papas aparte", "extra papas", "agregar papas", "extra medallon", "medallon extra", "extra panceta", "extra huevo"],
+      "respuesta": "Todas las burgers vienen con papas. Podés agregar papas extra ($5.500), medallón extra ($2.000), panceta extra ($2.000) o huevo extra ($1.000)."
+    },
+    {
+      "tema": "Dips",
+      "keywords": ["dip", "dips", "salsas", "mayonesa de ajo", "mostaza miel"],
+      "respuesta": "Tenemos dip cheddar ($1.000), dip barbacoa ($700) y dip mayo casera ($800). En los combos podés elegir mayonesa de ajo, barbacoa o mostaza miel."
+    },
+    {
+      "tema": "Bebidas y tragos",
+      "keywords": ["bebida", "bebidas", "gaseosa", "agua", "cerveza", "vino", "trago", "tragos", "happy hour"],
+      "respuesta": "Sí, tenemos bebidas, tragos y happy hour en el salón. Te paso con el equipo para contarte las opciones y precios del día.",
+      "derivar": true
+    },
+    {
+      "tema": "Postres",
+      "keywords": ["postre", "postres", "helado", "dulce"],
+      "respuesta": "No tenemos postres por ahora."
+    },
+    {
+      "tema": "Promociones",
+      "keywords": ["promo", "promos", "promocion", "promociones", "descuento", "descuentos"],
+      "respuesta": "Tenemos promos distintas todos los días. Te paso con el equipo para contarte la promo vigente de hoy.",
+      "derivar": true
+    },
+    {
+      "tema": "Salón y reservas",
+      "keywords": ["reservar", "reserva", "mesa", "mesas", "salon", "cenar en el lugar", "comer en el lugar"],
+      "respuesta": "Tenemos salón para cenar en el lugar, con reserva. Reservás por este mismo WhatsApp. Contanos día, hora y cuántas personas.",
+      "derivar": true
+    },
+    {
+      "tema": "Capacidad del salón",
+      "keywords": ["cuantas personas entran", "capacidad del salon", "capacidad", "cuanta gente entra"],
+      "respuesta": "En el salón entran 50 personas."
+    },
+    {
+      "tema": "Eventos y cumpleaños",
+      "keywords": ["evento", "eventos", "cumpleanos", "cumple", "festejar", "fiesta en el salon"],
+      "respuesta": "Sí, hacemos eventos y cumpleaños en el salón, para 50 personas. Coordinamos todo por este mismo WhatsApp. No hacemos catering fuera del local.",
+      "derivar": true
+    },
+    {
+      "tema": "Catering",
+      "keywords": ["catering", "caterin", "evento afuera", "llevan comida a eventos"],
+      "respuesta": "No hacemos catering fuera del local. Sí hacemos eventos y cumpleaños en nuestro salón."
+    },
+    {
+      "tema": "Sin TACC",
+      "keywords": ["sin tacc", "tacc", "celiaco", "celiaca", "gluten"],
+      "respuesta": "No tenemos opción sin TACC."
+    },
+    {
+      "tema": "Vegetariano / vegano",
+      "keywords": ["vegetariana", "vegetariano", "vegana", "vegano", "sin carne"],
+      "respuesta": "Sí, tenemos opción vegetariana. Te paso con el equipo para contarte cuál está disponible y el precio.",
+      "derivar": true
+    },
+    {
+      "tema": "Picante de la Mexicana",
+      "keywords": ["pica", "picante", "mexicana pica", "sin picante"],
+      "respuesta": "La Mexicana lleva guacamole y salsa picante opcional. Podés pedirla sin picante o con el dip aparte."
+    },
+    {
+      "tema": "Cambiar ingredientes",
+      "keywords": ["sin cebolla", "sin tomate", "sacar cebolla", "sacar tomate", "sacar lechuga", "sacar ingrediente", "cambiar ingrediente", "modificar ingrediente", "sin lechuga", "sin jamon"],
+      "respuesta": "Sí, podés sacar o cambiar ingredientes. Escribilo en el pedido, por ejemplo: \"sin cebolla\"."
+    },
+    {
+      "tema": "Menú para chicos",
+      "keywords": ["menu de chicos", "menu infantil", "menu para ninos", "para chicos"],
+      "respuesta": "No tenemos menú para chicos."
+    },
+    {
+      "tema": "Carne y pan",
+      "keywords": ["cuanto pesa", "que carne", "medallon de", "pan de papa", "peso de la carne"],
+      "respuesta": "Usamos medallón de carne de 120 g y pan de papa."
+    },
+    {
+      "tema": "PedidosYa",
+      "keywords": ["pedidosya", "pedidos ya"],
+      "respuesta": "En PedidosYa los precios son más altos por las comisiones. Pidiendo directo por este WhatsApp accedés al precio directo."
+    },
+    {
+      "tema": "Descuento por cumpleaños o cantidad",
+      "keywords": ["descuento por cumpleanos", "promo por cumpleanos", "descuento por cantidad", "precio por cantidad"],
+      "respuesta": "No hacemos descuento por cumpleaños ni por cantidad. Ya tenemos promos vigentes todos los días."
+    },
+    {
+      "tema": "Juegos",
+      "keywords": ["juegos", "jenga", "ludo", "juego uno", "jugar al uno", "truco", "ajedrez", "juegos de mesa"],
+      "respuesta": "Tenemos Jenga, ludo, Uno, truco, ajedrez y juegos de mesa."
+    },
+    {
+      "tema": "Chicos y mascotas",
+      "keywords": ["con chicos", "con ninos", "mascota", "mascotas", "perro", "nene", "nenes"],
+      "respuesta": "Pueden venir con chicos hasta las 00:45 y con mascotas."
+    },
+    {
+      "tema": "Estacionamiento",
+      "keywords": ["estacionamiento", "cochera", "donde estacionar"],
+      "respuesta": "Sí, hay estacionamiento."
+    },
+    {
+      "tema": "Trabajo / CV",
+      "keywords": ["cv", "curriculum", "trabajo", "buscan personal", "empleo"],
+      "respuesta": "Por el momento no estamos buscando personal. Si querés dejar tu CV, mandalo al +54 9 264 317-9759."
+    },
+    {
+      "tema": "Atención humana",
+      "keywords": ["quien responde", "quienes responden", "horario de atencion", "equipo del local", "gabriel", "mathias"],
+      "respuesta": "Te responden Gabriel y Mathias desde las 19:00. Si necesitás algo urgente, escribí por acá y el equipo lo ve."
+    },
+    {
+      "tema": "Sorteos",
+      "keywords": ["sorteo", "sorteos", "instagram"],
+      "respuesta": "Los sorteos se publican en Instagram @elclubdelaburger24."
+    },
+    {
+      "tema": "Pedido demorado",
+      "keywords": ["pedido demorado", "esta demorado", "no llega", "todavia no llega", "cuanto falta"],
+      "respuesta": "Te paso con el equipo para que revise el estado de tu pedido.",
+      "derivar": true
+    },
+    {
+      "tema": "Pedido mal o incompleto",
+      "keywords": ["llego mal", "falta algo", "pedido incompleto", "se equivocaron", "me llego otra cosa"],
+      "respuesta": "Lamento el problema. Te paso con una persona del equipo para resolverlo.",
+      "derivar": true
+    },
+    {
+      "tema": "Cancelaciones y cambios",
+      "keywords": ["cancelar pedido", "anular pedido", "modificar pedido", "cambiar pedido", "hasta cuando puedo cancelar", "cancelacion", "cancelaciones"],
+      "respuesta": "Podés cancelar o modificar sin costo hasta 10 minutos después de recibido el pedido. Si querés cambiarlo, escribí *cancelar* y armamos el nuevo. Después de ese plazo, hablá con el equipo."
+    },
+    {
+      "tema": "Pedidos grandes",
+      "keywords": ["pedido grande", "pedidos grandes", "mas de 10", "para mucha gente", "cantidad grande"],
+      "respuesta": "Sí, aceptamos pedidos grandes, más de 10 burgers. No hace falta anticipación, pero puede demorar un poco más de lo normal."
+    },
+    {
+      "tema": "Pedido para otro día",
+      "keywords": ["para otro dia", "pedir para otro dia", "se puede pedir para otro dia", "hacer pedido para otro dia", "pedido para otro dia"],
+      "respuesta": "Sí, podés pedir para otro día. Decime para qué día y te muestro los horarios disponibles."
+    },
+    {
+      "tema": "No retira el pedido",
+      "keywords": ["no lo retiro", "no paso a buscar", "no aparece", "no retira"],
+      "respuesta": "Si el cliente no retira el pedido, se cancela."
+    }
+  ],
+  "unknown_reply": "No tengo ese dato confirmado. Te paso con alguien del equipo para que te responda 🙌"
+}

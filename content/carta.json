@@ -1,0 +1,128 @@
+{
+  "_nota": "Precios directos por WhatsApp tomados del cuestionario del local (20/11/2026). Los precios en null no se pueden pedir por el bot. Las recetas descuentan stock por noche.",
+  "insumos": [
+    {"id": "medallon", "nombre": "Medallones de carne 120 g", "unidad": "u", "stock_diario": 200},
+    {"id": "pan", "nombre": "Panes de papa", "unidad": "u", "stock_diario": 100},
+    {"id": "pollo", "nombre": "Pollo crispy", "unidad": "porción", "stock_diario": 6},
+    {"id": "papas", "nombre": "Papas fritas", "unidad": "porción", "stock_diario": 10},
+    {"id": "nuggets", "nombre": "Nuggets", "unidad": "u", "stock_diario": 120},
+    {"id": "dip", "nombre": "Dips / salsas", "unidad": "u", "stock_diario": 100},
+    {"id": "panceta", "nombre": "Panceta", "unidad": "u"},
+    {"id": "huevo", "nombre": "Huevos", "unidad": "u"}
+  ],
+  "productos": [
+    {"id": "clasica", "categoria": "Burgers", "nombre": "Burger Clásica", "alias": ["clasica", "clasic", "burger clasica"],
+     "descripcion": "Pan de papa, medallón 120 g, queso tybo, jamón, tomate, lechuga, mayo de ajo y papas fritas.",
+     "precio": 8500, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "clasica-simple", "nombre": "Simple", "precio": 8500, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "clasica-doble", "nombre": "Doble", "precio": 9500, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "clasica-triple", "nombre": "Triple", "precio": 11500, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "diego", "categoria": "Burgers", "nombre": "Burger Diego Armando", "alias": ["diego armando", "diego", "maradona"],
+     "descripcion": "Pan de papa, medallón 120 g, tybo, salsa criolla, lechuga, mayo de ajo y papas fritas.",
+     "precio": 9200, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "diego-simple", "nombre": "Simple", "precio": 9200, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "diego-doble", "nombre": "Doble", "precio": 10200, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "diego-triple", "nombre": "Triple", "precio": 12200, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "fiesta", "categoria": "Burgers", "nombre": "Burger Fiesta del Sabor", "alias": ["fiesta del sabor", "fiesta"],
+     "descripcion": "Pan de papa, medallón 120 g, cheddar, jamón, huevo frito, cebolla crispy, mayo de ajo y papas fritas.",
+     "precio": 9300, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "fiesta-simple", "nombre": "Simple", "precio": 9300, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "fiesta-doble", "nombre": "Doble", "precio": 10200, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "fiesta-triple", "nombre": "Triple", "precio": 12200, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "delclub", "categoria": "Burgers", "nombre": "Burger del Club", "alias": ["del club", "burger del club", "la del club"],
+     "descripcion": "Pan de papa, 3 medallones, cheddar x3, panceta x3, aros de cebolla, barbacoa y papas fritas.",
+     "precio": 12800, "receta": {"medallon": 3, "pan": 1, "papas": 1}},
+    {"id": "crispy", "categoria": "Burgers", "nombre": "Burger Crispy Chicken", "alias": ["crispy chicken", "crispy", "pollo", "chicken"],
+     "descripcion": "Pan de papa, pollo frito, cheddar, tomate, lechuga, barbacoa y papas fritas.",
+     "precio": 9200, "receta": {"pollo": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "crispy-simple", "nombre": "Simple", "precio": 9200, "receta": {"pollo": 1, "pan": 1, "papas": 1}},
+       {"id": "crispy-doble", "nombre": "Doble", "precio": 10200, "receta": {"pollo": 2, "pan": 1, "papas": 1}},
+       {"id": "crispy-triple", "nombre": "Triple", "precio": 12200, "receta": {"pollo": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "cheese", "categoria": "Burgers", "nombre": "Burger Cheese", "alias": ["cheese burger", "cheeseburger", "cheese"],
+     "descripcion": "Pan de papa, medallón 120 g, cheddar x2 y papas fritas.",
+     "precio": 8900, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "cheese-simple", "nombre": "Simple", "precio": 8900, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "cheese-doble", "nombre": "Doble", "precio": 9900, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "cheese-triple", "nombre": "Triple", "precio": 11900, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "mexicana", "categoria": "Burgers", "nombre": "Burger Mexicana", "alias": ["mexicana", "mexican", "mexicano"],
+     "descripcion": "Pan de papa, medallón 120 g, cheddar, guacamole y picante opcional, con papas.",
+     "precio": 9700, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "mexicana-simple", "nombre": "Simple", "precio": 9700, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "mexicana-doble", "nombre": "Doble", "precio": 10600, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "mexicana-triple", "nombre": "Triple", "precio": 12600, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "american", "categoria": "Burgers", "nombre": "Burger American", "alias": ["american", "americana", "americano"],
+     "descripcion": "Pan de papa, medallón 120 g, cheddar, panceta, cebolla crispy, barbacoa y papas fritas.",
+     "precio": 9800, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "american-simple", "nombre": "Simple", "precio": 9800, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "american-doble", "nombre": "Doble", "precio": 10900, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "american-triple", "nombre": "Triple", "precio": 12900, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "blue", "categoria": "Burgers", "nombre": "Burger Blue", "alias": ["blue", "azul", "roquefort"],
+     "descripcion": "Pan de papa, medallón 120 g, queso azul, jamón, cebolla crispy, mayo de ajo y papas fritas.",
+     "precio": 9200, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "blue-simple", "nombre": "Simple", "precio": 9200, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "blue-doble", "nombre": "Doble", "precio": 10200, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "blue-triple", "nombre": "Triple", "precio": 12200, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "honey", "categoria": "Burgers", "nombre": "Burger Honey", "alias": ["honey", "miel"],
+     "descripcion": "Pan de papa, medallón 120 g, cheddar, panceta, miel y papas fritas.",
+     "precio": 9600, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "honey-simple", "nombre": "Simple", "precio": 9600, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "honey-doble", "nombre": "Doble", "precio": 10600, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "honey-triple", "nombre": "Triple", "precio": 12600, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "cheeseonion", "categoria": "Burgers", "nombre": "Burger Cheese Onion", "alias": ["cheese onion", "cheese and onion", "onion"],
+     "descripcion": "Pan de papa, medallón 120 g, cheddar, aros de cebolla, mostaza miel y papas fritas.",
+     "precio": 9500, "receta": {"medallon": 1, "pan": 1, "papas": 1},
+     "variantes": [
+       {"id": "cheeseonion-simple", "nombre": "Simple", "precio": 9500, "receta": {"medallon": 1, "pan": 1, "papas": 1}},
+       {"id": "cheeseonion-doble", "nombre": "Doble", "precio": 10500, "receta": {"medallon": 2, "pan": 1, "papas": 1}},
+       {"id": "cheeseonion-triple", "nombre": "Triple", "precio": 12500, "receta": {"medallon": 3, "pan": 1, "papas": 1}}
+     ]},
+    {"id": "combo1", "categoria": "Combos (vie, sáb y dom)", "nombre": "Combo 1 Para Compartir", "alias": ["combo 1", "combo uno", "para compartir", "combo compartir"],
+     "descripcion": "2 burgers dobles a elección (todas menos Crispy Chicken) + papas + 1 dip (mayo de ajo, barbacoa o mostaza miel) + 2 nuggets.",
+     "precio": 18000, "dias": ["viernes", "sabado", "domingo"], "receta": {"medallon": 4, "pan": 2, "papas": 1, "dip": 1, "nuggets": 2}},
+    {"id": "combo2", "categoria": "Combos (vie, sáb y dom)", "nombre": "Combo 2 Individual Bomba", "alias": ["combo 2", "combo dos", "individual bomba", "bomba", "combo individual"],
+     "descripcion": "1 burger triple a elección (todas menos Crispy Chicken) + papas + 1 dip (mayo de ajo, barbacoa o mostaza miel) + 1 nugget.",
+     "precio": 11000, "dias": ["viernes", "sabado", "domingo"], "receta": {"medallon": 3, "pan": 1, "papas": 1, "dip": 1, "nuggets": 1}},
+    {"id": "combo3", "categoria": "Combos (vie, sáb y dom)", "nombre": "Combo 3 Amistad", "alias": ["combo 3", "combo tres", "amistad", "combo amistad"],
+     "descripcion": "4 burgers dobles a elección (todas menos Crispy Chicken) + papas + 2 dips (mayo de ajo, barbacoa o mostaza miel) + 6 nuggets.",
+     "precio": 37000, "dias": ["viernes", "sabado", "domingo"], "receta": {"medallon": 8, "pan": 4, "papas": 2, "dip": 2, "nuggets": 6}},
+    {"id": "papas", "categoria": "Papas y extras", "nombre": "Papas clásicas", "alias": ["papas clasicas", "porcion de papas", "papas fritas", "papas"],
+     "descripcion": "Porción de papas bastón.",
+     "precio": 5500, "receta": {"papas": 1}},
+    {"id": "extra-medallon", "categoria": "Papas y extras", "nombre": "Extra medallón", "alias": ["extra medallon", "medallon extra", "agregar medallon", "medallon adicional"],
+     "descripcion": "Un medallón de carne 120 g más.",
+     "precio": 2000, "receta": {"medallon": 1}},
+    {"id": "extra-panceta", "categoria": "Papas y extras", "nombre": "Extra panceta", "alias": ["extra panceta", "panceta extra", "agregar panceta"],
+     "descripcion": "Porción extra de panceta.",
+     "precio": 2000, "receta": {"panceta": 1}},
+    {"id": "extra-huevo", "categoria": "Papas y extras", "nombre": "Extra huevo", "alias": ["extra huevo", "huevo extra", "agregar huevo"],
+     "descripcion": "Un huevo frito más.",
+     "precio": 1000, "receta": {"huevo": 1}},
+    {"id": "dip-cheddar", "categoria": "Dips", "nombre": "Dip cheddar", "alias": ["dip cheddar", "cheddar dip", "salsa cheddar"],
+     "descripcion": "Dip de cheddar.",
+     "precio": 1000, "receta": {"dip": 1}},
+    {"id": "dip-barbacoa", "categoria": "Dips", "nombre": "Dip barbacoa", "alias": ["dip barbacoa", "salsa barbacoa", "barbacoa dip"],
+     "descripcion": "Dip de barbacoa.",
+     "precio": 700, "receta": {"dip": 1}},
+    {"id": "dip-mayo", "categoria": "Dips", "nombre": "Dip mayo casera", "alias": ["dip mayo", "mayo casera", "dip mayonesa"],
+     "descripcion": "Dip de mayo casera.",
+     "precio": 800, "receta": {"dip": 1}}
+  ]
+}

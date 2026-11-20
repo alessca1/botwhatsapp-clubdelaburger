@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel — El Club de la Burger</title>
+<link rel="stylesheet" href="/panel/panel.css">
+</head>
+<body>
+<section id="login" class="login">
+  <form id="loginForm">
+    <h1>🍔 El Club de la Burger</h1>
+    <p>Panel de pedidos y stock</p>
+    <input id="token" type="password" placeholder="Clave de acceso (ADMIN_TOKEN)" autocomplete="current-password" required>
+    <button type="submit">Entrar</button>
+    <small id="loginError"></small>
+  </form>
+</section>
+
+<section id="app" hidden>
+  <header>
+    <strong>🍔 El Club</strong>
+    <nav>
+      <button data-tab="orders" class="active">Pedidos</button>
+      <button data-tab="stock">Stock</button>
+      <button data-tab="menu">Carta</button>
+      <button data-tab="chats">Chats <span id="chatBadge" class="badge" hidden></span></button>
+    </nav>
+    <div class="status" id="status"></div>
+    <label class="date">Noche <input type="date" id="serviceDate"></label>
+  </header>
+
+  <main>
+    <div id="tab-orders" class="tab">
+      <div class="summary" id="orderSummary"></div>
+      <div class="board" id="board"></div>
+    </div>
+
+    <div id="tab-stock" class="tab" hidden>
+      <p class="hint">El stock es por noche de servicio. Cada pedido descuenta insumos según la receta del producto.
+        <b>Sin control</b> = no se limita. "Por defecto" se carga sola cada noche nueva.
+        El dueño carga el inicial a las 20:00 y el encargado el cierre a la 01:00.</p>
+      <table class="grid" id="stockTable"></table>
+    </div>
+
+    <div id="tab-menu" class="tab" hidden>
+      <p class="hint">Cada burger tiene precio <b>simple, doble y triple</b>. Un producto <b>sin precio</b> no se puede pedir por el bot. Pausalo con "Disponible" si se agota algo puntual.</p>
+      <table class="grid" id="menuTable"></table>
+    </div>
+
+    <div id="tab-chats" class="tab chats" hidden>
+      <ul id="chatList"></ul>
+      <div class="chat">
+        <div class="chatHead" id="chatHead">Elegí una conversación</div>
+        <div class="messages" id="messages"></div>
+        <form id="replyForm" hidden>
+          <textarea id="replyText" rows="2" placeholder="Responder como el local (pausa el bot 5 minutos)"></textarea>
+          <div class="row">
+            <button type="submit">Enviar</button>
+            <button type="button" id="pauseBot" class="ghost">Pausar bot</button>
+            <button type="button" id="resumeBot" class="ghost">Reactivar bot</button>
+            <button type="button" id="resolved" class="ghost">Marcar resuelto</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</section>
+<script src="/panel/panel.js"></script>
+</body>
+</html>
