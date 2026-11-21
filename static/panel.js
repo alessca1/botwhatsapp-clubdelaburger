@@ -21,6 +21,8 @@ const ICON = {
   chat: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 12a7 7 0 0 1-7 7H8l-4 2 1.2-4A7 7 0 1 1 20 12Z"/></svg>',
   camera: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8h4l1.5-2h5L16 8h4v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>',
 };
+const EMPTY_CHAT_HEAD = '<div class="chat-empty-head"><span class="avatar">?</span><div><strong>Elegí una conversación</strong><small>Los mensajes del bot y del local aparecen acá.</small></div></div>';
+const EMPTY_MESSAGES = '<div class="chat-empty-state"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 12a7 7 0 0 1-7 7H8l-4 2 1.2-4A7 7 0 1 1 20 12Z"/><path d="M9 11h6M9 14h4"/></svg><p>Elegí un chat de la izquierda para ver la conversación.</p></div>';
 
 let token = '';
 let seenOrders = null;
@@ -149,6 +151,7 @@ function orderCard(o) {
     ? `<button class="btn btn-ghost btn-sm" data-fee="${o.id}" data-status="${o.status}">Envío $</button>` : '';
   const cancel = !['cancelado', 'entregado'].includes(o.status)
     ? `<button class="btn btn-ghost btn-sm" data-order="${o.id}" data-status="cancelado">Cancelar</button>` : '';
+  const chat = o.has_chat === false ? '' : `<button class="btn btn-ghost btn-sm" data-chat="${o.conversation_id}">${ICON.chat} Chat</button>`;
   return `<article class="order-card ${o.status === 'nuevo' ? 'is-new' : ''}">
     <header><span class="order-number">#${o.number}</span><span class="order-total">${money(o.total)}</span></header>
     <div class="order-sub"><span>${created}</span><span>${esc(slot)}</span></div>
@@ -157,7 +160,7 @@ function orderCard(o) {
     <div class="order-meta">${mode}</div>
     <div class="order-meta">${ICON.card}<span>${esc(o.payment || 'Pago a confirmar')}</span>${receipt}${fee}</div>
     ${newTag ? `<div class="order-tags">${newTag}</div>` : ''}
-    <div class="order-actions">${actions}${feeBtn}${cancel}<button class="btn btn-ghost btn-sm" data-chat="${o.conversation_id}">${ICON.chat} Chat</button></div>
+    <div class="order-actions">${actions}${feeBtn}${cancel}${chat}</div>
   </article>`;
 }
 
@@ -325,16 +328,40 @@ async function openChat(id) {
   const phone = meta.wa_id || id.split(':').pop();
   const name = meta.name || '+' + phone;
   $('chatHead').innerHTML = `<div class="chat-peer"><span class="avatar">${esc(initials(name))}</span><div><strong>${esc(name)}</strong><small>+${esc(phone)}</small></div></div>
-    <div class="chat-state">${meta.needs_human ? '<span class="tag human">Pide persona</span>' : ''}${meta.bot_paused ? '<span class="tag">Bot en pausa</span>' : ''}</div>`;
-  const msgs = await api(`/admin/conversations/${encodeURIComponent(id)}/messages`);
+    <div class="chat-state">${meta.needs_human ? '<span class="tag human">Pide persona</span>' : ''}${meta.bot_paused ? '<span class="tag">Bot en pausa</span>' : ''}<button type="button" class="btn btn-ghost btn-sm chat-delete" data-delete-chat="${esc(id)}">Borrar chat</button></div>`;
   const box = $('messages');
-  const labels = { in: 'Cliente', bot: 'Bot', human: 'Local' };
-  box.innerHTML = msgs.length ? msgs.map((m) => `<div class="msg ${m.direction}"><div class="bubble">${esc(m.text)}</div><small>${labels[m.direction] || 'Mensaje'} · ${new Date(m.created * 1000).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}</small></div>`).join('')
-    : '<div class="chat-empty-state"><p>Esta conversación todavía no tiene mensajes.</p></div>';
+  try {
+    const msgs = await api(`/admin/conversations/${encodeURIComponent(id)}/messages`);
+    const labels = { in: 'Cliente', bot: 'Bot', human: 'Local' };
+    box.innerHTML = msgs.length ? msgs.map((m) => `<div class="msg ${m.direction}"><div class="bubble">${esc(m.text)}</div><small>${labels[m.direction] || 'Mensaje'} · ${new Date(m.created * 1000).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}</small></div>`).join('')
+      : '<div class="chat-empty-state"><p>Esta conversación todavía no tiene mensajes.</p></div>';
+  } catch (err) {
+    box.innerHTML = '<div class="chat-empty-state"><p>No pudimos abrir este chat. Puede haber sido borrado.</p></div>';
+  }
   box.scrollTop = box.scrollHeight;
   loadChats();
 }
 
+function resetChat() {
+  currentChat = null; $('replyForm').hidden = true;
+  $('chatHead').innerHTML = EMPTY_CHAT_HEAD;
+  $('messages').innerHTML = EMPTY_MESSAGES;
+}
+
+$('chatHead').addEventListener('click', async (e) => {
+  const button = e.target.closest('[data-delete-chat]'); if (!button) return;
+  const id = button.dataset.deleteChat;
+  if (!confirm('¿Borrar este chat del panel? Se borra el historial local y los mensajes pendientes. No se borra de WhatsApp ni de Pedidos.')) return;
+  button.disabled = true;
+  try {
+    await api(`/admin/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    resetChat();
+    await loadChats();
+  } catch (err) {
+    alert('No se pudo borrar: ' + err.message);
+    button.disabled = false;
+  }
+});
 $('chatList').addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) openChat(li.dataset.id); });
 $('replyForm').addEventListener('submit', async (e) => {
   e.preventDefault(); const text = $('replyText').value.trim(); if (!text || !currentChat) return;

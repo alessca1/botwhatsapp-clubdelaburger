@@ -258,7 +258,8 @@ def create_app(settings=None, run_worker=True, llm=None):
                 out.append({'id': o.id, 'number': o.number, 'status': o.status, 'slot': o.slot, 'mode': o.mode,
                             'payment': o.payment, 'total': o.total, 'delivery_fee': o.delivery_fee,
                             'receipt_received': o.receipt_received, 'created': o.created,
-                            'conversation_id': o.conversation_id, 'wa_name': conv.name if conv else '', **data})
+                            'conversation_id': o.conversation_id, 'has_chat': conv is not None,
+                            'wa_name': conv.name if conv else '', **data})
             return {'service_date': sd, 'orders': out}
 
     class StatusBody(BaseModel):
@@ -479,5 +480,21 @@ def create_app(settings=None, run_worker=True, llm=None):
             conv.needs_human = False if body.action in {'resume', 'resolved'} else conv.needs_human
             s.commit()
         return {'saved': True}
+
+    @app.delete('/admin/conversations/{conv_id}', dependencies=[Depends(admin)])
+    def delete_conversation(conv_id: str):
+        with db.session() as s:
+            conv = s.get(Conversation, conv_id)
+            if not conv:
+                raise HTTPException(404, 'Conversación inexistente')
+            # Local panel history only: orders stay in the night's ledger and
+            # nothing is deleted from the customer's WhatsApp thread.
+            s.query(Message).filter_by(conversation_id=conv_id).delete(synchronize_session=False)
+            s.query(Event).filter_by(conversation_id=conv_id).delete(synchronize_session=False)
+            s.query(Outbox).filter_by(conversation_id=conv_id).delete(synchronize_session=False)
+            s.delete(conv)
+            s.add(Audit(action='conversation_deleted', target=conv_id))
+            s.commit()
+        return {'deleted': True}
 
     return app

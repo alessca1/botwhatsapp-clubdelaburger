@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from app.config import Settings
-from app.db import Order, Outbox, Conversation, Product, ProductVariant, Insumo
+from app.db import Order, Outbox, Conversation, Product, ProductVariant, Insumo, Message, Event
 from app.hours import Schedule
 from app.main import create_app
 from app.menu import parse_items, load_items
@@ -440,6 +440,34 @@ def test_faq_answers(app):
     assert 'por este mismo WhatsApp' in out
     with app.state.db.session() as s:
         assert s.get(Conversation, 'club-2643179759:5492641111111').needs_human
+
+
+def test_chat_can_be_deleted_from_panel(app):
+    from urllib.parse import quote
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    send(app, 'hola', WED_21)
+    cid = 'club-2643179759:5492641111111'
+    with app.state.db.session() as s:
+        assert s.get(Conversation, cid)
+        assert s.query(Message).filter_by(conversation_id=cid).count() >= 2
+    r = app.state.client.delete('/admin/conversations/' + quote(cid, safe=''), headers=h)
+    assert r.status_code == 200 and r.json()['deleted'] is True
+    with app.state.db.session() as s:
+        assert not s.get(Conversation, cid)
+        assert s.query(Message).filter_by(conversation_id=cid).count() == 0
+        assert s.query(Event).filter_by(conversation_id=cid).count() == 0
+        assert s.query(Outbox).filter_by(conversation_id=cid).count() == 0
+    assert app.state.client.delete('/admin/conversations/' + quote(cid, safe=''), headers=h).status_code == 404
+
+
+def test_order_keeps_ledger_when_chat_is_deleted(app):
+    from urllib.parse import quote
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    place_takeaway(app, '1 american')
+    cid = 'club-2643179759:5492641111111'
+    assert app.state.client.delete('/admin/conversations/' + quote(cid, safe=''), headers=h).status_code == 200
+    orders = app.state.client.get('/admin/orders?service_date=2026-11-18', headers=h).json()['orders']
+    assert len(orders) == 1 and orders[0]['has_chat'] is False
 
 
 def test_panel_requires_token(app):
