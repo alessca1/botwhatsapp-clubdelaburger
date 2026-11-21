@@ -297,7 +297,7 @@ function addSimple(product) {
 }
 
 function cartLineHTML(line) {
-  const extras = (line.extras || []).map((extra) => `+ ${esc(extra.name)}`).join(', ');
+  const extras = (line.extras || []).map((extra) => `+ ${esc(extra.name)} ${money(extra.price)}`).join(', ');
   const removals = (line.removals || []).map((item) => esc(item)).join(', ');
   return `<div class="cart-line" data-key="${esc(line.key)}">
     <div class="cart-line-top">
