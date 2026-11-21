@@ -167,6 +167,21 @@ def test_cart_message_is_parseable_by_bot(app):
                    ('dip-cheddar', 1, '', None)]
 
 
+def test_cart_message_creates_order_with_extras(app):
+    cart = ('Hola! Quiero hacer este pedido:\n'
+            '2 x Burger American Doble, sin cebolla.\n'
+            '2 x Extra medallón.')
+    for step in [cart, 'listo', 'retiro', 'Juan', '1', 'efectivo', 'si']:
+        out = send(app, step, WED_21)
+    assert 'Pedido *#1* recibido' in out
+    with app.state.db.session() as s:
+        order = s.scalar(select(Order))
+        assert order.total == 25800
+        items = app.state.db.unpack(order.data)['items']
+        assert any(i['name'] == 'Burger American Doble' and i['qty'] == 2 for i in items)
+        assert any(i['name'] == 'Extra medallón' and i['qty'] == 2 for i in items)
+
+
 def test_public_menu_page_and_photo_upload(app):
     import base64
     client = app.state.client
