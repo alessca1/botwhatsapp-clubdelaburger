@@ -51,7 +51,12 @@
       <a href="#combos">combos</a>
       <a href="#pedir">cómo pedir</a>
     </nav>
-    <a class="button button-small" data-wa-general href="https://wa.me/5492643179759?text=Hola%21%20Quiero%20hacer%20un%20pedido.">
+    <button class="cart-button" type="button" data-cart-open aria-label="Abrir carrito">
+      <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 6h12l-1 10H5L4 6Zm3 0a3 3 0 0 1 6 0"/></svg>
+      <span>Carrito</span>
+      <span class="cart-count" data-cart-count>0</span>
+    </button>
+    <a class="button button-small topbar-wa" data-wa-general href="https://wa.me/5492643179759?text=Hola%21%20Quiero%20hacer%20un%20pedido.">
       Pedir por WhatsApp
       <svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 8h10M8 3l5 5-5 5"/></svg>
     </a>
@@ -201,11 +206,39 @@
     </div>
   </footer>
 
+  <dialog id="customizeDialog" class="modal">
+    <div class="modal-card">
+      <button type="button" class="modal-close" data-close-dialog aria-label="Cerrar">
+        <svg aria-hidden="true" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13"/></svg>
+      </button>
+      <div id="customizeBody"></div>
+    </div>
+  </dialog>
+
+  <dialog id="cartDialog" class="cart-dialog">
+    <div class="cart-panel">
+      <header class="cart-head">
+        <div>
+          <h2>Tu carrito</h2>
+        </div>
+        <button type="button" class="modal-close" data-close-dialog aria-label="Cerrar carrito">
+          <svg aria-hidden="true" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3 3 13"/></svg>
+        </button>
+      </header>
+      <div id="cartBody" class="cart-body"></div>
+      <footer class="cart-foot">
+        <div class="cart-total"><span>Total</span><strong data-cart-total>$0</strong></div>
+        <a class="button" id="cartCheckout" href="https://wa.me/5492643179759">Enviar por WhatsApp</a>
+        <p>El pedido se confirma en el chat. Ahí elegís delivery o retiro.</p>
+      </footer>
+    </div>
+  </dialog>
+
   <div class="mobile-bar">
-    <a class="button" data-wa-general href="https://wa.me/5492643179759?text=Hola%21%20Quiero%20hacer%20un%20pedido.">
-      Pedir por WhatsApp
-      <svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 8h10M8 3l5 5-5 5"/></svg>
-    </a>
+    <button class="button mobile-cart" type="button" data-cart-open>
+      Carrito <span data-cart-count>0</span>
+    </button>
+    <a class="button mobile-wa" data-wa-general href="https://wa.me/5492643179759?text=Hola%21%20Quiero%20hacer%20un%20pedido.">Pedir</a>
   </div>
 </body>
 </html>

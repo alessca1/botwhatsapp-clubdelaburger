@@ -5,7 +5,23 @@ const money = (value) => '$' + new Intl.NumberFormat('es-AR', { maximumFractionD
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wa = (text) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 
-const state = { products: [], byId: new Map(), selected: new Map() };
+const state = { products: [], byId: new Map(), selected: new Map(), cart: [], customizing: null };
+const CART_KEY = 'club-cart-v1';
+
+function readCart() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((line) => line && line.id && line.qty > 0) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCart() {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(state.cart)); } catch (error) { /* private mode */ }
+}
+
+state.cart = readCart();
 
 const arrow = '<svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 8h10M8 3l5 5-5 5"/></svg>';
 
@@ -106,16 +122,16 @@ function dishCard(product, index) {
   const defaultVariant = variants[0] || null;
   state.selected.set(product.id, defaultVariant ? defaultVariant.id : null);
   const price = defaultVariant ? defaultVariant.price : product.price;
+  const titleName = `${product.name}${defaultVariant ? ` ${defaultVariant.name}` : ''}`;
   const image = product.image_url
     ? `<img src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy" decoding="async">`
     : dishGlyph(product, index);
   const sizeButtons = variants.length > 1
     ? `<div class="size-row" role="group" aria-label="Tamaño de ${esc(product.name)}">${variants.map((v, i) => `<button type="button" class="size-button" data-variant="${esc(v.id)}" aria-pressed="${i === 0}">${esc(v.name)}</button>`).join('')}</div>`
     : '';
-  const ctaText = product.available ? 'Pedir por WhatsApp' : 'Consultar disponibilidad';
-  const ctaHref = product.available
-    ? wa(`Hola! Quiero pedir 1 ${product.name}${defaultVariant ? ' ' + defaultVariant.name : ''}.`)
-    : wa(`Hola! Quiero consultar por ${product.name}.`);
+  const actions = product.available
+    ? `<div class="dish-actions"><button type="button" class="dish-add" data-add="${esc(product.id)}">Agregar al carrito</button><button type="button" class="dish-customize" data-customize="${esc(product.id)}">Personalizar</button></div>`
+    : `<div class="dish-actions"><button type="button" class="dish-add" disabled>Agotado</button></div>`;
   return `<article class="dish${product.available ? '' : ' is-sold-out'}" data-id="${esc(product.id)}">
     <div class="dish-media">
       ${image}
@@ -124,12 +140,12 @@ function dishCard(product, index) {
     </div>
     <div class="dish-body">
       <div class="dish-title-row">
-        <h3>${esc(product.name)}${product.available ? '' : '<span class="sold-out">agotado</span>'}</h3>
+        <h3>${esc(titleName)}${product.available ? '' : '<span class="sold-out">agotado</span>'}</h3>
         <span class="dish-price" data-price>${money(price)}</span>
       </div>
       <p class="dish-desc">${esc(product.description)}</p>
       ${sizeButtons}
-      <a class="dish-cta" data-cta href="${ctaHref}">${ctaText} ${arrow}</a>
+      ${actions}
     </div>
   </article>`;
 }
@@ -140,16 +156,16 @@ function comboCard(product, index) {
     <h3>${esc(product.name)}</h3>
     <p>${esc(product.description)}</p>
     <div class="combo-price">${money(product.price)}</div>
-    <a class="combo-link" href="${wa(`Hola! Quiero pedir 1 ${product.name}.`)}">Pedir ${arrow}</a>
+    <button type="button" class="combo-link" data-add="${esc(product.id)}">Agregar al carrito ${arrow}</button>
   </article>`;
 }
 
 function priceRow(product) {
-  return `<a class="price-row" href="${wa(`Hola! Quiero agregar ${product.name}.`)}">
+  return `<button type="button" class="price-row" data-add="${esc(product.id)}">
     <span class="name">${esc(product.name)}<span class="desc">${esc(product.description)}</span></span>
     <span class="dots" aria-hidden="true"></span>
     <span class="price">${money(product.price)}</span>
-  </a>`;
+  </button>`;
 }
 
 function noteCard() {
@@ -184,11 +200,319 @@ function bindSizes() {
     card.querySelectorAll('.size-button').forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
     const priceNode = card.querySelector('[data-price]');
     if (priceNode) priceNode.textContent = money(variant.price);
-    const cta = card.querySelector('[data-cta]');
-    if (cta) cta.href = wa(`Hola! Quiero pedir 1 ${product.name} ${variant.name}.`);
+    const title = card.querySelector('h3');
+    if (title) title.firstChild.textContent = `${product.name} ${variant.name}`;
     state.selected.set(product.id, variant.id);
   });
 }
+
+function removalOptions(product) {
+  const text = String(product.description || '').toLowerCase();
+  const options = [
+    ['tomate', 'sin tomate'],
+    ['lechuga', 'sin lechuga'],
+    ['cebolla', 'sin cebolla'],
+    ['jamon', 'sin jamón'],
+    ['panceta', 'sin panceta'],
+    ['huevo', 'sin huevo'],
+    ['picante', 'sin picante'],
+    ['guacamole', 'sin guacamole'],
+    ['cheddar', 'sin cheddar'],
+    ['tybo', 'sin tybo'],
+    ['queso azul', 'sin queso azul'],
+  ];
+  const seen = new Set();
+  return options.filter(([needle, label]) => {
+    if (seen.has(label) || !text.includes(needle)) return false;
+    seen.add(label);
+    return true;
+  }).map(([, label]) => label);
+}
+
+function cartCount() {
+  return state.cart.reduce((sum, line) => sum + line.qty, 0);
+}
+
+function cartTotal() {
+  return state.cart.reduce((sum, line) => sum + line.total, 0);
+}
+
+function cartMessage() {
+  const lines = [];
+  const extras = new Map();
+  state.cart.forEach((line) => {
+    if (line.kind === 'burger') {
+      let text = `${line.qty} x ${line.name}${line.variantName ? ` ${line.variantName}` : ''}`;
+      if (line.removals && line.removals.length) text += `, ${line.removals.join(' y ')}`;
+      lines.push(`${text}.`);
+      (line.extras || []).forEach((extra) => {
+        const current = extras.get(extra.id) || { name: extra.name, qty: 0 };
+        current.qty += line.qty * (extra.count || 1);
+        extras.set(extra.id, current);
+      });
+    } else {
+      lines.push(`${line.qty} x ${line.name}.`);
+    }
+  });
+  extras.forEach((extra) => lines.push(`${extra.qty} x ${extra.name}.`));
+  return `Hola! Quiero hacer este pedido:\n${lines.join('\n')}`;
+}
+
+function addLine(line) {
+  const existing = state.cart.find((item) => item.key === line.key);
+  if (existing) {
+    existing.qty = Math.min(20, existing.qty + line.qty);
+    existing.total = existing.unit * existing.qty;
+  } else {
+    state.cart.push(line);
+  }
+  saveCart();
+  updateCartUI();
+}
+
+function addSimple(product) {
+  if (!product || !product.available) return;
+  const extras = [];
+  if (product.kind === 'burger') {
+    const variantId = state.selected.get(product.id) || (product.variants[0] && product.variants[0].id) || null;
+    const variant = (product.variants || []).find((v) => v.id === variantId);
+    const base = variant ? variant.price : product.price;
+    const name = `${product.name}${variant ? ` ${variant.name}` : ''}`;
+    addLine({
+      key: `burger|${product.id}|${variantId || ''}`,
+      kind: 'burger', id: product.id, name: product.name,
+      variantId: variantId || null, variantName: variant ? variant.name : '',
+      basePrice: base, unit: base, qty: 1, extras, removals: [], total: base,
+    });
+    toast(`${name} agregado`);
+  } else {
+    addLine({
+      key: `${product.kind}|${product.id}`,
+      kind: product.kind, id: product.id, name: product.name,
+      variantId: null, variantName: '', basePrice: product.price, unit: product.price,
+      qty: 1, extras, removals: [], total: product.price,
+    });
+    toast(`${product.name} agregado`);
+  }
+}
+
+function cartLineHTML(line) {
+  const extras = (line.extras || []).map((extra) => `+ ${esc(extra.name)}`).join(', ');
+  const removals = (line.removals || []).map((item) => esc(item)).join(', ');
+  return `<div class="cart-line" data-key="${esc(line.key)}">
+    <div class="cart-line-top">
+      <div>
+        <strong>${line.qty} x ${esc(line.name)}${line.variantName ? ` ${esc(line.variantName)}` : ''}</strong>
+        ${extras ? `<span class="cart-sub">${extras}</span>` : ''}
+        ${removals ? `<span class="cart-sub">${removals}</span>` : ''}
+      </div>
+      <b>${money(line.total)}</b>
+    </div>
+    <div class="cart-line-actions">
+      <div class="qty-mini">
+        <button type="button" data-cart-minus aria-label="Restar uno">−</button>
+        <span>${line.qty}</span>
+        <button type="button" data-cart-plus aria-label="Sumar uno">+</button>
+      </div>
+      <button type="button" class="cart-remove" data-cart-remove>Quitar</button>
+    </div>
+  </div>`;
+}
+
+function updateCartUI() {
+  const count = cartCount();
+  document.querySelectorAll('[data-cart-count]').forEach((node) => { node.textContent = count; });
+  const totalNode = document.querySelector('[data-cart-total]');
+  if (totalNode) totalNode.textContent = money(cartTotal());
+  const body = document.querySelector('#cartBody');
+  if (body) {
+    body.innerHTML = state.cart.length
+      ? state.cart.map(cartLineHTML).join('')
+      : '<div class="cart-empty"><p>Tu carrito está vacío.</p><a class="text-link" href="#carta" data-close-dialog>Ver la carta</a></div>';
+  }
+  const checkout = document.querySelector('#cartCheckout');
+  if (checkout) {
+    checkout.href = state.cart.length ? wa(cartMessage()) : wa('Hola! Quiero hacer un pedido.');
+    checkout.textContent = state.cart.length ? 'Enviar pedido por WhatsApp' : 'Pedir por WhatsApp';
+  }
+}
+
+function toast(text) {
+  const node = document.createElement('div');
+  node.className = 'toast';
+  node.setAttribute('role', 'status');
+  node.textContent = text;
+  document.body.appendChild(node);
+  window.setTimeout(() => node.remove(), 2400);
+}
+
+function openCart() {
+  updateCartUI();
+  const dialog = document.querySelector('#cartDialog');
+  if (dialog && !dialog.open) dialog.showModal();
+}
+
+function customTotal() {
+  const custom = state.customizing;
+  if (!custom) return 0;
+  const product = state.byId.get(custom.productId);
+  const variant = (product.variants || []).find((v) => v.id === custom.variantId);
+  const base = variant ? variant.price : product.price;
+  const extraTotal = [...custom.extras].reduce((sum, id) => {
+    const extra = state.byId.get(id);
+    return sum + (extra ? extra.price : 0);
+  }, 0);
+  return (base + extraTotal) * custom.qty;
+}
+
+function renderCustomize() {
+  const custom = state.customizing;
+  if (!custom) return;
+  const product = state.byId.get(custom.productId);
+  if (!product) return;
+  const variants = (product.variants || []).filter((v) => v.price != null);
+  const extras = state.products.filter((p) => (p.kind === 'extra' || p.kind === 'dip') && p.available && p.price != null);
+  const removals = removalOptions(product);
+  const sizeSection = variants.length > 1
+    ? `<div class="custom-section"><h3>Tamaño</h3><div class="choice-grid">${variants.map((v) => `<button type="button" class="choice-button" data-size="${esc(v.id)}" aria-pressed="${v.id === custom.variantId}">${esc(v.name)} <b>${money(v.price)}</b></button>`).join('')}</div></div>`
+    : '';
+  const extraSection = extras.length
+    ? `<div class="custom-section"><h3>Sumá algo</h3><div class="check-list">${extras.map((p) => `<label class="check-row"><input type="checkbox" data-extra="${esc(p.id)}" ${custom.extras.has(p.id) ? 'checked' : ''}><span>${esc(p.name)}<small>${esc(p.description)}</small></span><b>+ ${money(p.price)}</b></label>`).join('')}</div></div>`
+    : '';
+  const removeSection = removals.length
+    ? `<div class="custom-section"><h3>Sacar ingredientes</h3><div class="check-list">${removals.map((label) => `<label class="check-row"><input type="checkbox" data-remove="${esc(label)}" ${custom.removals.has(label) ? 'checked' : ''}><span>${esc(label)}</span><b>sin costo</b></label>`).join('')}</div></div>`
+    : '';
+  const body = document.querySelector('#customizeBody');
+  body.innerHTML = `<div class="custom-intro"><h2>${esc(product.name)}</h2><p>${esc(product.description)}</p></div>
+    ${sizeSection}${extraSection}${removeSection}
+    <div class="custom-footer">
+      <div class="custom-bottom">
+        <div class="custom-qty"><span>Cantidad</span><div class="qty-control"><button type="button" data-qty="-1" aria-label="Restar">−</button><strong data-qty-value>${custom.qty}</strong><button type="button" data-qty="1" aria-label="Sumar">+</button></div></div>
+        <div class="custom-total"><span>Total</span><strong data-custom-total>${money(customTotal())}</strong></div>
+      </div>
+      <button type="button" class="button custom-add" data-custom-add>Agregar al carrito</button>
+    </div>`;
+}
+
+function updateCustomTotal() {
+  const total = customTotal();
+  const node = document.querySelector('[data-custom-total]');
+  if (node) node.textContent = money(total);
+}
+
+function openCustomize(product) {
+  if (!product || !product.available || product.kind !== 'burger') return;
+  const variants = (product.variants || []).filter((v) => v.price != null);
+  const selected = variants.find((v) => v.id === state.selected.get(product.id)) || variants[0] || null;
+  state.customizing = {
+    productId: product.id,
+    variantId: selected ? selected.id : null,
+    qty: 1, extras: new Set(), removals: new Set(),
+  };
+  renderCustomize();
+  const dialog = document.querySelector('#customizeDialog');
+  if (dialog && !dialog.open) dialog.showModal();
+}
+
+function addCustom() {
+  const custom = state.customizing;
+  if (!custom) return;
+  const product = state.byId.get(custom.productId);
+  const variant = (product.variants || []).find((v) => v.id === custom.variantId);
+  const base = variant ? variant.price : product.price;
+  const extras = [...custom.extras].map((id) => {
+    const extra = state.byId.get(id);
+    return { id, name: extra.name, price: extra.price, count: 1 };
+  });
+  const removals = [...custom.removals];
+  const unit = base + extras.reduce((sum, extra) => sum + extra.price, 0);
+  const key = `burger|${product.id}|${custom.variantId || ''}|${extras.map((e) => e.id).join(',')}|${removals.join(',')}`;
+  addLine({
+    key, kind: 'burger', id: product.id, name: product.name,
+    variantId: custom.variantId, variantName: variant ? variant.name : '',
+    basePrice: base, unit, qty: custom.qty, extras, removals, total: unit * custom.qty,
+  });
+  toast(`${product.name}${variant ? ` ${variant.name}` : ''} agregado`);
+  const dialog = document.querySelector('#customizeDialog');
+  if (dialog && dialog.open) dialog.close();
+  state.customizing = null;
+}
+
+document.addEventListener('click', (event) => {
+  const open = event.target.closest('[data-cart-open]');
+  if (open) { openCart(); return; }
+  const add = event.target.closest('[data-add]');
+  if (add) {
+    const product = state.byId.get(add.dataset.add);
+    if (product) addSimple(product);
+    return;
+  }
+  const customize = event.target.closest('[data-customize]');
+  if (customize) {
+    const product = state.byId.get(customize.dataset.customize);
+    if (product) openCustomize(product);
+    return;
+  }
+  const close = event.target.closest('[data-close-dialog]');
+  if (close) {
+    const dialog = close.closest('dialog');
+    if (dialog) dialog.close();
+  }
+});
+
+document.querySelectorAll('dialog').forEach((dialog) => {
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+});
+
+document.querySelector('#customizeDialog').addEventListener('click', (event) => {
+  const custom = state.customizing;
+  if (!custom) return;
+  const size = event.target.closest('[data-size]');
+  if (size) {
+    custom.variantId = size.dataset.size;
+    document.querySelectorAll('[data-size]').forEach((button) => button.setAttribute('aria-pressed', String(button === size)));
+    updateCustomTotal();
+    return;
+  }
+  const extra = event.target.closest('[data-extra]');
+  if (extra) {
+    if (extra.checked) custom.extras.add(extra.dataset.extra); else custom.extras.delete(extra.dataset.extra);
+    updateCustomTotal();
+    return;
+  }
+  const remove = event.target.closest('[data-remove]');
+  if (remove) {
+    if (remove.checked) custom.removals.add(remove.dataset.remove); else custom.removals.delete(remove.dataset.remove);
+    updateCustomTotal();
+    return;
+  }
+  const qty = event.target.closest('[data-qty]');
+  if (qty) {
+    custom.qty = Math.max(1, Math.min(10, custom.qty + Number(qty.dataset.qty)));
+    const value = document.querySelector('[data-qty-value]');
+    if (value) value.textContent = custom.qty;
+    updateCustomTotal();
+    return;
+  }
+  if (event.target.closest('[data-custom-add]')) addCustom();
+});
+
+document.querySelector('#cartDialog').addEventListener('click', (event) => {
+  const lineNode = event.target.closest('.cart-line');
+  if (!lineNode) return;
+  const line = state.cart.find((item) => item.key === lineNode.dataset.key);
+  if (!line) return;
+  if (event.target.closest('[data-cart-plus]')) line.qty = Math.min(20, line.qty + 1);
+  else if (event.target.closest('[data-cart-minus]')) line.qty = Math.max(0, line.qty - 1);
+  else if (event.target.closest('[data-cart-remove]')) line.qty = 0;
+  else return;
+  line.total = line.unit * line.qty;
+  state.cart = state.cart.filter((item) => item.qty > 0);
+  saveCart();
+  updateCartUI();
+});
 
 async function loadMenu() {
   const grid = document.querySelector('#burgerGrid');
@@ -215,9 +539,11 @@ async function loadMenu() {
     if (business.phone) {
       document.querySelectorAll('.footer-phone').forEach((link) => { link.href = `https://wa.me/${business.phone}`; });
     }
+    updateCartUI();
   } catch (error) {
     grid.innerHTML = `<p class="loading">No pudimos cargar la carta. <a href="${wa('Hola! Me pasás la carta?')}">Pedila por WhatsApp</a>.</p>`;
     comboGrid.innerHTML = '';
+    updateCartUI();
   }
 }
 

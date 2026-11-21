@@ -152,12 +152,28 @@ def test_bad_signature_rejected(app):
     assert r.status_code == 403
 
 
+def test_cart_message_is_parseable_by_bot(app):
+    with app.state.db.session() as s:
+        items = load_items(s)
+    text = ('Hola! Quiero hacer este pedido:\n'
+            '2 x Burger American Doble, sin cebolla.\n'
+            '2 x Extra medallón.\n'
+            '1 x Papas clásicas.\n'
+            '1 x Dip cheddar.')
+    got = [(i.id, q, n, v) for i, q, n, v in parse_items(text, items)]
+    assert got == [('american', 2, 'sin cebolla', 'american-doble'),
+                   ('extra-medallon', 2, '', None),
+                   ('papas', 1, '', None),
+                   ('dip-cheddar', 1, '', None)]
+
+
 def test_public_menu_page_and_photo_upload(app):
     import base64
     client = app.state.client
     page = client.get('/carta')
     assert page.status_code == 200
     assert 'El Club de la Burger' in page.text and 'La carta' in page.text
+    assert 'Burger Clásica' in page.text
     assert client.get('/carta/carta.css').status_code == 200
     assert client.get('/carta/carta.js').status_code == 200
     menu = client.get('/public/menu').json()

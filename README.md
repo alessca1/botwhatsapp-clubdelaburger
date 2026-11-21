@@ -43,6 +43,7 @@ El bot manda este link cuando piden la carta (`carta`, `menú`, `precios`) y des
 - **Fotos por burger:** Panel → Carta → **Foto de la carta**. Se puede subir JPG, PNG o WebP; el panel la comprime y la guarda en Postgres. Se publica al instante en `/carta`.
 - Mientras no haya foto, la página muestra una ilustración editorial de los ingredientes con la etiqueta "foto pendiente". Cuando subís la foto real, la reemplaza.
 - Las fotos se sirven en `/menu/image/{producto}` y sobreviven a los deploys porque están en la base, no en el disco de Render.
+- **Carrito:** elegís tamaño, extras con costo, ingredientes para sacar y cantidad. El carrito queda guardado en el navegador y el botón de WhatsApp manda el pedido armado en un formato que el bot entiende (`2 x Burger American Doble, sin cebolla`, `2 x Extra medallón`). El bot vuelve a calcular precios y stock; el total de la página es de referencia.
 
 ## Panel
 
@@ -90,7 +91,7 @@ py -3.14 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
-Las 45 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, subida y borrado de fotos en la base, y ventana de 24 h.
+Las 46 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser, subida y borrado de fotos en la base, y ventana de 24 h.
 
 El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`; después se edita desde el panel o `PUT /admin/content`. Si se cambia `content/negocio.json` o `content/carta.json`, hay que subir el marcador de versión o editar desde el panel, para no pisar cambios hechos por el local.
 
