@@ -48,7 +48,7 @@ El bot manda este link cuando piden la carta (`carta`, `menú`, `precios`) y des
 ## Panel
 
 `https://<servicio>.onrender.com/panel` — entrar con `ADMIN_TOKEN`.
-Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (inicial, usado, quedan, "Agotado", valor por defecto de cada noche), **Carta** (precios simple/doble/triple, disponibilidad y **foto de cada producto**), **Chats** (responder, pausar/reactivar bot, marcar resuelto).
+Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (ledger por noche, inicial, usado, quedan, "Agotado", valor por defecto), **Carta** (precios simple/doble/triple, disponibilidad y **foto de cada producto** en tarjetas), **Chats** (bandeja con avatares, burbujas, responder, pausar/reactivar bot, marcar resuelto).
 
 ## Despliegue actual (20/11/2026)
 

@@ -4,69 +4,155 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Panel — El Club de la Burger</title>
+<meta name="theme-color" content="#15110e">
+<link rel="icon" href="/carta/favicon.svg" type="image/svg+xml">
+<title>Panel de noche — El Club de la Burger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Bodoni+Moda:opsz,wght@6..96,600;6..96,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/panel/panel.css">
 </head>
 <body>
 <section id="login" class="login">
-  <form id="loginForm">
-    <h1>🍔 El Club de la Burger</h1>
-    <p>Panel de pedidos y stock</p>
-    <input id="token" type="password" placeholder="Clave de acceso (ADMIN_TOKEN)" autocomplete="current-password" required>
-    <button type="submit">Entrar</button>
-    <small id="loginError"></small>
+  <div class="login-scene">
+    <div class="login-wordmark">El Club<br>de la Burger</div>
+    <p class="login-scene-copy">Pedidos, stock y conversaciones del turno noche. Todo lo que pasa en el local, en una sola pantalla.</p>
+    <div class="login-ticket">
+      <span class="ticket-kicker">Panel de operaciones</span>
+      <div class="ticket-row"><span>Servicio</span><b>Miércoles a lunes</b></div>
+      <div class="ticket-row"><span>Horario</span><b>20:00 a 01:00</b></div>
+      <div class="ticket-row"><span>WhatsApp</span><b>264 317-9759</b></div>
+      <div class="ticket-barcode" aria-hidden="true"></div>
+    </div>
+  </div>
+  <form id="loginForm" class="login-card">
+    <span class="form-kicker">Acceso del equipo</span>
+    <h1>Entrá al turno</h1>
+    <p>Usá la clave del local para ver pedidos, stock, carta y chats.</p>
+    <label class="field">
+      <span>Clave de acceso</span>
+      <input id="token" type="password" placeholder="ADMIN_TOKEN" autocomplete="current-password" required>
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">Entrar al panel</button>
+    <small id="loginError" class="form-error"></small>
+    <a class="login-link" href="/carta" target="_blank" rel="noreferrer">Ver carta pública <span aria-hidden="true">↗</span></a>
   </form>
 </section>
 
-<section id="app" hidden>
-  <header>
-    <strong>🍔 El Club</strong>
-    <nav>
-      <button data-tab="orders" class="active">Pedidos</button>
-      <button data-tab="stock">Stock</button>
-      <button data-tab="menu">Carta</button>
-      <button data-tab="chats">Chats <span id="chatBadge" class="badge" hidden></span></button>
+<section id="app" class="app" hidden>
+  <aside class="sidebar">
+    <a class="brand" href="#top" aria-label="El Club de la Burger">
+      <span>El Club</span>
+      <span>de la Burger</span>
+    </a>
+    <nav class="mainnav" aria-label="Secciones del panel">
+      <button data-tab="orders" aria-label="Pedidos" class="active" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h14v16l-2-1.4L15 20l-3-1.4L9 20l-2-1.4L5 20V4Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        <span>Pedidos</span>
+      </button>
+      <button data-tab="stock" aria-label="Stock" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 8 8-4 8 4-8 4-8-4Z"/><path d="m4 12 8 4 8-4M4 16l8 4 8-4"/></svg>
+        <span>Stock</span>
+      </button>
+      <button data-tab="menu" aria-label="Carta" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+        <span>Carta</span>
+      </button>
+      <button data-tab="chats" aria-label="Chats" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 12a7 7 0 0 1-7 7H8l-4 2 1.2-4A7 7 0 1 1 20 12Z"/><path d="M9 11h6M9 14h4"/></svg>
+        <span>Chats</span>
+        <span id="chatBadge" class="badge" hidden></span>
+      </button>
     </nav>
-    <div class="status" id="status"></div>
-    <label class="date">Noche <input type="date" id="serviceDate"></label>
-  </header>
-
-  <main>
-    <div id="tab-orders" class="tab">
-      <div class="summary" id="orderSummary"></div>
-      <div class="board" id="board"></div>
+    <div class="sidebar-foot">
+      <div id="status" class="status"></div>
+      <a class="side-link" href="/carta" target="_blank" rel="noreferrer">Carta pública <span aria-hidden="true">↗</span></a>
+      <button id="logout" class="side-link side-logout" type="button">Cerrar sesión</button>
     </div>
+  </aside>
 
-    <div id="tab-stock" class="tab" hidden>
-      <p class="hint">El stock es por noche de servicio. Cada pedido descuenta insumos según la receta del producto.
-        <b>Sin control</b> = no se limita. "Por defecto" se carga sola cada noche nueva.
-        El dueño carga el inicial a las 20:00 y el encargado el cierre a la 01:00.</p>
-      <table class="grid" id="stockTable"></table>
-    </div>
-
-    <div id="tab-menu" class="tab" hidden>
-      <p class="hint">Cada burger tiene precio <b>simple, doble y triple</b>. Un producto <b>sin precio</b> no se puede pedir por el bot. Pausalo con "Disponible" si se agota algo puntual.
-        En <b>Foto de la carta</b> podés subir la foto real de cada burger; se publica al instante en <a href="/carta" target="_blank">/carta</a>.</p>
-      <table class="grid" id="menuTable"></table>
-    </div>
-
-    <div id="tab-chats" class="tab chats" hidden>
-      <ul id="chatList"></ul>
-      <div class="chat">
-        <div class="chatHead" id="chatHead">Elegí una conversación</div>
-        <div class="messages" id="messages"></div>
-        <form id="replyForm" hidden>
-          <textarea id="replyText" rows="2" placeholder="Responder como el local (pausa el bot 5 minutos)"></textarea>
-          <div class="row">
-            <button type="submit">Enviar</button>
-            <button type="button" id="pauseBot" class="ghost">Pausar bot</button>
-            <button type="button" id="resumeBot" class="ghost">Reactivar bot</button>
-            <button type="button" id="resolved" class="ghost">Marcar resuelto</button>
-          </div>
-        </form>
+  <div class="shell" id="top">
+    <header class="topbar">
+      <div class="page-title">
+        <span id="tabEyebrow" class="page-kicker">Servicio</span>
+        <h1 id="tabTitle">Pedidos</h1>
       </div>
-    </div>
-  </main>
+      <label class="date-field">
+        <span>Noche</span>
+        <input type="date" id="serviceDate">
+      </label>
+    </header>
+
+    <main>
+      <section id="tab-orders" class="tab">
+        <div class="stats" id="orderSummary"></div>
+        <div class="section-bar">
+          <p class="section-note">Los pedidos se mueven de izquierda a derecha. El aviso suena cuando entra uno nuevo.</p>
+          <button class="btn btn-ghost btn-sm" type="button" id="refreshOrders">Actualizar</button>
+        </div>
+        <div class="board" id="board"></div>
+      </section>
+
+      <section id="tab-stock" class="tab" hidden>
+        <div class="section-intro">
+          <div>
+            <h2>Stock de la noche</h2>
+            <p>El stock es por noche de servicio. Cada pedido descuenta insumos según la receta del producto. <b>Sin control</b> no se limita; <b>por defecto</b> se carga solo cada noche nueva.</p>
+          </div>
+          <span class="section-stamp">Inicial 20:00 / cierre 01:00</span>
+        </div>
+        <div class="stats stats-compact" id="stockSummary"></div>
+        <div class="stock-ledger" id="stockTable"></div>
+      </section>
+
+      <section id="tab-menu" class="tab" hidden>
+        <div class="section-intro">
+          <div>
+            <h2>La carta que ve el cliente</h2>
+            <p>Cada burger tiene precio simple, doble y triple. Un producto sin precio no se puede pedir por el bot. La foto se publica al instante en <a href="/carta" target="_blank" rel="noreferrer">la carta pública</a>.</p>
+          </div>
+          <span class="section-stamp">Fotos en Postgres</span>
+        </div>
+        <div class="stats stats-compact" id="menuSummary"></div>
+        <div class="menu-admin-grid" id="menuTable"></div>
+      </section>
+
+      <section id="tab-chats" class="tab chats" hidden>
+        <div class="chat-list-panel">
+          <div class="chat-list-head">
+            <div>
+              <span class="page-kicker">Bandeja</span>
+              <h2>Conversaciones</h2>
+            </div>
+          </div>
+          <ul id="chatList"></ul>
+        </div>
+        <div class="chat">
+          <div class="chatHead" id="chatHead">
+            <div class="chat-empty-head">
+              <span class="avatar">?</span>
+              <div><strong>Elegí una conversación</strong><small>Los mensajes del bot y del local aparecen acá.</small></div>
+            </div>
+          </div>
+          <div class="messages" id="messages">
+            <div class="chat-empty-state">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 12a7 7 0 0 1-7 7H8l-4 2 1.2-4A7 7 0 1 1 20 12Z"/><path d="M9 11h6M9 14h4"/></svg>
+              <p>Elegí un chat de la izquierda para ver la conversación.</p>
+            </div>
+          </div>
+          <form id="replyForm" class="reply-form" hidden>
+            <textarea id="replyText" rows="2" placeholder="Responder como el local (pausa el bot 5 minutos)"></textarea>
+            <div class="reply-actions">
+              <button type="submit" class="btn btn-primary">Enviar</button>
+              <button type="button" id="pauseBot" class="btn btn-ghost btn-sm">Pausar bot</button>
+              <button type="button" id="resumeBot" class="btn btn-ghost btn-sm">Reactivar</button>
+              <button type="button" id="resolved" class="btn btn-ghost btn-sm">Marcar resuelto</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
 </section>
 <script src="/panel/panel.js"></script>
 </body>
