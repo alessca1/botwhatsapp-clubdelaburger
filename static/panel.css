@@ -69,6 +69,8 @@ svg { display: block; }
 .btn-primary:hover { background: var(--tomato-2); border-color: var(--tomato-2); }
 .btn-ghost { background: transparent; border-color: var(--line-2); color: var(--text); }
 .btn-ghost:hover { background: var(--panel-2); border-color: var(--muted); }
+.btn-danger { border-color: rgba(232, 93, 74, 0.45); color: var(--danger); }
+.btn-danger:hover { border-color: var(--tomato-2); background: var(--tomato-2); color: #fff9ef; }
 .btn-sm { min-height: 30px; padding: 6px 9px; font-size: 11px; }
 .btn-block { width: 100%; }
 .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; flex: none; }
@@ -424,6 +426,7 @@ main { width: 100%; max-width: 1700px; margin: 0 auto; padding: 22px 28px 44px; 
 .menu-head { display: flex; align-items: start; gap: 7px; }
 .menu-code { flex: none; padding: 3px 5px; border: 1px solid var(--line-2); border-radius: 3px; color: var(--dim); font-size: 9px; }
 .menu-head h3 { margin: 1px 0 0; color: var(--paper); font-size: 17px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
+.menu-cat { margin: 0; color: var(--dim); font-size: 9px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
 .menu-desc { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .menu-days { display: flex; flex-wrap: wrap; gap: 4px; }
 .price-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
@@ -431,7 +434,10 @@ main { width: 100%; max-width: 1700px; margin: 0 auto; padding: 22px 28px 44px; 
 .price-field { display: grid; gap: 3px; color: var(--dim); font-size: 9px; }
 .price-field input { width: 100%; min-height: 33px; padding: 6px 7px; font-size: 11px; }
 .menu-save { width: 100%; }
+.menu-admin-actions { display: flex; gap: 6px; }
+.menu-admin-actions .btn { flex: 1 1 auto; }
 .recipe { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line-2); color: var(--dim); font-size: 9px; line-height: 1.4; }
+.menu-toolbar { margin-top: 0; }
 .switch { display: inline-flex; align-items: center; gap: 5px; flex: none; margin-left: auto; color: var(--muted); font-size: 9px; cursor: pointer; }
 .switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .switch-track { position: relative; width: 30px; height: 17px; border: 1px solid var(--line-2); border-radius: 99px; background: var(--panel-2); transition: background 150ms ease, border-color 150ms ease; }
@@ -440,6 +446,50 @@ main { width: 100%; max-width: 1700px; margin: 0 auto; padding: 22px 28px 44px; 
 .switch input:checked + .switch-track::after { transform: translateX(13px); background: #171310; }
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--cheddar); outline-offset: 2px; }
 .menu-card.is-uploading .photo-upload { opacity: 0.55; pointer-events: none; }
+
+/* ---------- product editor ---------- */
+.product-dialog {
+  width: min(720px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  color: var(--text);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+}
+.product-dialog::backdrop { background: rgba(10, 8, 6, 0.72); backdrop-filter: blur(3px); }
+.product-form { display: flex; max-height: inherit; flex-direction: column; }
+.product-form-head { display: flex; align-items: start; justify-content: space-between; gap: 18px; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.product-form-head h2 { margin: 3px 0 0; color: var(--paper); font-family: var(--display); font-size: 31px; font-weight: 900; letter-spacing: -0.04em; line-height: 0.95; }
+.product-dialog .form-kicker { color: var(--cheddar); }
+.product-dialog-close { display: grid; flex: none; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line-2); border-radius: 50%; background: transparent; color: var(--paper); font-size: 23px; line-height: 1; cursor: pointer; }
+.product-dialog-close:hover { background: var(--tomato-2); border-color: var(--tomato-2); }
+.product-form-body { display: grid; gap: 14px; overflow: auto; padding: 18px 20px 20px; }
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.product-dialog .field { margin-bottom: 0; color: var(--muted); }
+.product-dialog .field input, .product-dialog .field textarea, .product-dialog .field select { width: 100%; background: var(--bg); border-color: var(--line-2); color: var(--text); }
+.product-dialog .field textarea { resize: vertical; }
+.product-check { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); font-size: 11px; cursor: pointer; }
+.product-check input { width: 17px; height: 17px; flex: none; }
+.product-days { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.days-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.days-grid label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; cursor: pointer; }
+.days-grid input { width: 15px; height: 15px; }
+.product-advanced { padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.product-advanced summary { color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; }
+.product-advanced[open] summary { margin-bottom: 12px; color: var(--text); }
+.product-advanced-body { display: grid; gap: 12px; }
+.recipe-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.recipe-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); font-size: 10px; }
+.recipe-item span { min-width: 0; }
+.recipe-item small { display: block; color: var(--dim); font-size: 9px; }
+.recipe-item input { width: 64px; min-height: 32px; padding: 5px 7px; font-size: 11px; }
+.form-note { margin: 0; color: var(--dim); font-size: 10px; line-height: 1.45; }
+.product-dialog .form-error { min-height: 0; color: var(--danger); font-size: 11px; }
+.product-form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); background: var(--panel); }
+.product-form-actions .btn-danger { margin-right: auto; }
 
 /* ---------- chats ---------- */
 .chats { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 14px; height: calc(100vh - 136px); min-height: 520px; }
@@ -531,6 +581,12 @@ main { width: 100%; max-width: 1700px; margin: 0 auto; padding: 22px 28px 44px; 
   .board { grid-template-columns: 1fr; }
   .menu-admin-grid { grid-template-columns: 1fr; }
   .menu-photo { aspect-ratio: 16 / 9; }
+  .form-grid, .recipe-grid { grid-template-columns: 1fr; }
+  .product-form-head, .product-form-actions { padding-left: 16px; padding-right: 16px; }
+  .product-form-body { padding: 16px; }
+  .product-form-head h2 { font-size: 26px; }
+  .product-form-actions .btn { flex: 1 1 auto; }
+  .product-form-actions .btn-danger { margin-right: 0; }
   .stock-row { grid-template-columns: 1fr; gap: 9px; }
   .stock-actions { justify-content: flex-start; }
   .price-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }

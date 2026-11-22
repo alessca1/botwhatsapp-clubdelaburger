@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import time
 from html import escape
 from contextlib import asynccontextmanager
@@ -15,8 +16,8 @@ from sqlalchemy import select, text
 from app.config import Settings
 from app.db import (Database, Conversation, Content, Event, Outbox, Message, Order, Product,
                     ProductVariant, ProductImage, Insumo, DailyStock, Audit)
-from app.hours import Schedule
-from app.menu import load_items, money, product_kind
+from app.hours import DAYS, Schedule
+from app.menu import load_items, money, normalized, product_kind
 from app.service import Bot
 from app.zernio import ingest_zernio
 from app import stock as stockmod
@@ -324,15 +325,77 @@ def create_app(settings=None, run_worker=True, llm=None):
             images = {row.product_id: row.updated for row in s.scalars(select(ProductImage))}
             return [{'id': p.id, 'category': p.category, 'name': p.name, 'description': p.description,
                      'price': p.price, 'available': p.available, 'days': json.loads(p.days),
-                     'recipe': json.loads(p.recipe), 'variants': variants.get(p.id, []),
+                     'aliases': json.loads(p.aliases), 'recipe': json.loads(p.recipe),
+                     'variants': variants.get(p.id, []),
                      'image_url': (f'/menu/image/{p.id}?v={int(images[p.id])}' if p.id in images else None)}
                     for p in s.scalars(select(Product).order_by(Product.position))]
 
+    def _clean_aliases(values):
+        out = []
+        for value in values or []:
+            clean = str(value).strip()[:40]
+            if clean and clean not in out:
+                out.append(clean)
+        return out[:20]
+
+    def _clean_days(values):
+        days = list(dict.fromkeys(str(value).strip() for value in values or [] if str(value).strip()))
+        if not set(days) <= set(DAYS):
+            raise HTTPException(400, 'Días inválidos')
+        return days
+
+    def _validate_recipe(s, recipe):
+        known = {i.id for i in s.scalars(select(Insumo))}
+        if not set(recipe) <= known or any(v < 0 or v > 50 for v in recipe.values()):
+            raise HTTPException(400, 'Receta inválida')
+
+    def _product_slug(name):
+        slug = re.sub(r'[^a-z0-9]+', '-', normalized(name)).strip('-')
+        return (slug or 'producto')[:36].strip('-') or 'producto'
+
+    class ProductCreateBody(BaseModel):
+        name: str = Field(min_length=1, max_length=120)
+        category: str = Field(min_length=1, max_length=80)
+        description: str = Field(default='', max_length=400)
+        price: int | None = Field(default=None, ge=0, le=1_000_000)
+        available: bool = True
+        days: list[str] = Field(default_factory=list)
+        aliases: list[str] = Field(default_factory=list)
+        recipe: dict[str, int] = Field(default_factory=dict)
+
+    @app.post('/admin/menu', dependencies=[Depends(admin)])
+    def create_product(body: ProductCreateBody):
+        name, category = body.name.strip(), body.category.strip()
+        if not name or not category:
+            raise HTTPException(400, 'Nombre y categoría son obligatorios')
+        with db.session() as s:
+            base = _product_slug(name)
+            product_id, suffix = base, 2
+            while s.get(Product, product_id):
+                product_id = f'{base}-{suffix}'
+                suffix += 1
+            days = _clean_days(body.days)
+            aliases = _clean_aliases(body.aliases)
+            recipe = {k: int(v) for k, v in body.recipe.items()}
+            _validate_recipe(s, recipe)
+            position = max((p.position for p in s.scalars(select(Product))), default=0) + 1
+            s.add(Product(id=product_id, category=category, name=name,
+                          description=body.description.strip(), aliases=json.dumps(aliases, ensure_ascii=False),
+                          price=body.price, available=body.available, days=json.dumps(days),
+                          recipe=json.dumps(recipe), position=position))
+            s.add(Audit(action='product_created', target=product_id))
+            s.commit()
+        return {'saved': True, 'id': product_id}
+
     class ProductBody(BaseModel):
+        name: str | None = Field(default=None, max_length=120)
+        category: str | None = Field(default=None, max_length=80)
         price: int | None = Field(default=None, ge=0, le=1_000_000)
         clear_price: bool = False
         available: bool | None = None
         description: str | None = Field(default=None, max_length=400)
+        days: list[str] | None = None
+        aliases: list[str] | None = None
         recipe: dict[str, int] | None = None
         variants: dict[str, int] | None = None
 
@@ -342,6 +405,16 @@ def create_app(settings=None, run_worker=True, llm=None):
             p = s.get(Product, product_id)
             if not p:
                 raise HTTPException(404, 'Producto inexistente')
+            if body.name is not None:
+                name = body.name.strip()
+                if not name:
+                    raise HTTPException(400, 'El nombre es obligatorio')
+                p.name = name
+            if body.category is not None:
+                category = body.category.strip()
+                if not category:
+                    raise HTTPException(400, 'La categoría es obligatoria')
+                p.category = category
             rows = list(s.scalars(select(ProductVariant).where(ProductVariant.product_id == product_id)
                                   .order_by(ProductVariant.position)))
             by_id = {v.id: v for v in rows}
@@ -364,15 +437,39 @@ def create_app(settings=None, run_worker=True, llm=None):
             if body.available is not None:
                 p.available = body.available
             if body.description is not None:
-                p.description = body.description
+                p.description = body.description.strip()
+            if body.days is not None:
+                p.days = json.dumps(_clean_days(body.days))
+            if body.aliases is not None:
+                p.aliases = json.dumps(_clean_aliases(body.aliases), ensure_ascii=False)
             if body.recipe is not None:
-                known = {i.id for i in s.scalars(select(Insumo))}
-                if not set(body.recipe) <= known or any(v < 0 or v > 50 for v in body.recipe.values()):
-                    raise HTTPException(400, 'Receta inválida')
-                p.recipe = json.dumps(body.recipe)
+                recipe = {k: int(v) for k, v in body.recipe.items()}
+                _validate_recipe(s, recipe)
+                p.recipe = json.dumps(recipe)
             s.add(Audit(action='product_updated', target=product_id))
             s.commit()
         return {'saved': True}
+
+    @app.delete('/admin/menu/{product_id}', dependencies=[Depends(admin)])
+    def delete_product(product_id: str):
+        with db.session() as s:
+            p = s.get(Product, product_id)
+            if not p:
+                raise HTTPException(404, 'Producto inexistente')
+            s.query(ProductVariant).filter(ProductVariant.product_id == product_id).delete(synchronize_session=False)
+            image = s.get(ProductImage, product_id)
+            if image:
+                s.delete(image)
+            s.delete(p)
+            s.add(Audit(action='product_deleted', target=product_id))
+            s.commit()
+        return {'deleted': True}
+
+    @app.get('/admin/insumos', dependencies=[Depends(admin)])
+    def list_insumos():
+        with db.session() as s:
+            return [{'id': i.id, 'name': i.name, 'unit': i.unit, 'default_daily': i.default_daily}
+                    for i in s.scalars(select(Insumo).order_by(Insumo.name))]
 
     @app.post('/admin/menu/{product_id}/image', dependencies=[Depends(admin)])
     async def upload_menu_image(product_id: str, file: UploadFile = File(...)):

@@ -199,7 +199,10 @@ class Database:
             elif not seed:
                 current.body, current.updated = negocio.read_text(encoding='utf-8'), time.time()
             carta = json.loads((ROOT / 'content/carta.json').read_text(encoding='utf-8'))
+            deleted = {row.target for row in s.query(Audit).filter(Audit.action == 'product_deleted')}
             for position, p in enumerate(carta['productos']):
+                if p['id'] in deleted:
+                    continue
                 row = s.get(Product, p['id'])
                 if not row:
                     row = Product(id=p['id'])

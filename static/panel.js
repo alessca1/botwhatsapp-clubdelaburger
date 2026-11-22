@@ -28,7 +28,14 @@ let token = '';
 let seenOrders = null;
 let currentChat = null;
 let currentTab = 'orders';
+let menuItems = [];
+let insumos = [];
 const chatMeta = new Map();
+const MENU_CATEGORIES = ['Burgers', 'Combos (vie, sáb y dom)', 'Papas y extras', 'Dips', 'Bebidas', 'Otros'];
+const DAY_OPTIONS = [
+  ['viernes', 'Viernes'], ['sabado', 'Sábado'], ['domingo', 'Domingo'],
+  ['lunes', 'Lunes'], ['miercoles', 'Miércoles'], ['jueves', 'Jueves'],
+];
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -224,7 +231,9 @@ $('stockTable').addEventListener('click', async (e) => {
 });
 
 async function loadMenu() {
-  const items = await api('/admin/menu');
+  const [items, insumoRows] = await Promise.all([api('/admin/menu'), api('/admin/insumos')]);
+  menuItems = items;
+  insumos = insumoRows;
   const noPrice = items.filter((p) => p.price == null && !p.variants.length).length;
   const paused = items.filter((p) => !p.available).length;
   const photos = items.filter((p) => p.image_url).length;
@@ -245,15 +254,142 @@ async function loadMenu() {
       <div class="menu-photo">${photo}<label class="photo-upload">${p.image_url ? 'Cambiar foto' : 'Subir foto'}<input type="file" class="photoFile" accept="image/jpeg,image/png,image/webp"></label>${p.image_url ? '<button type="button" class="photo-remove" data-act="removePhoto">Quitar</button>' : ''}</div>
       <div class="menu-info">
         <div class="menu-head"><span class="menu-code">${String(index + 1).padStart(2, '0')}</span><h3>${esc(p.name)}</h3><label class="switch" title="${p.available ? 'Pausar producto' : 'Activar producto'}"><input type="checkbox" class="avail" ${p.available ? 'checked' : ''}><span class="switch-track"></span><span>${p.available ? 'Disponible' : 'Pausado'}</span></label></div>
+        <p class="menu-cat">${esc(p.category)}</p>
         <p class="menu-desc">${esc(p.description)}</p>
         ${p.days.length ? `<div class="menu-days">${p.days.map((d) => `<span class="tag">${esc(d)}</span>`).join('')}</div>` : ''}
         ${prices}
         <button class="btn btn-primary btn-sm menu-save" data-act="price">Guardar precios</button>
+        <div class="menu-admin-actions">
+          <button class="btn btn-ghost btn-sm" data-act="edit">Editar</button>
+          <button class="btn btn-ghost btn-sm btn-danger" data-act="delete">Borrar</button>
+        </div>
         <div class="recipe">Receta: ${Object.entries(p.recipe).map(([k, v]) => esc(k) + ' ×' + v).join(', ') || 'sin receta'}</div>
       </div>
     </article>`;
   }).join('');
 }
+
+function categoryOptions(selected) {
+  const categories = [...new Set([...MENU_CATEGORIES, ...menuItems.map((p) => p.category).filter(Boolean)])];
+  return categories.map((category) => `<option value="${esc(category)}"${category === selected ? ' selected' : ''}>${esc(category)}</option>`).join('');
+}
+
+function drawDays(selected) {
+  $('productDays').innerHTML = DAY_OPTIONS.map(([value, label]) =>
+    `<label><input type="checkbox" class="productDay" value="${value}"${selected.includes(value) ? ' checked' : ''}>${label}</label>`).join('');
+}
+
+function drawRecipe(recipe) {
+  $('productRecipe').innerHTML = insumos.map((insumo) =>
+    `<label class="recipe-item"><span>${esc(insumo.name)}<small>${esc(insumo.unit)}</small></span><input type="number" min="0" max="50" class="recipe-qty" data-id="${esc(insumo.id)}" value="${recipe[insumo.id] || ''}" placeholder="0"></label>`).join('');
+}
+
+function updateProductCategoryFields() {
+  const isCombo = $('productCategory').value.startsWith('Combos');
+  if (isCombo && !$('productId').value && !document.querySelector('.productDay:checked')) {
+    drawDays(['viernes', 'sabado', 'domingo']);
+  }
+  $('productDaysBox').hidden = !isCombo;
+}
+
+function openProductDialog(product = null) {
+  $('productForm').reset();
+  $('productFormError').textContent = '';
+  $('productId').value = product ? product.id : '';
+  $('productDialogTitle').textContent = product ? 'Editar producto' : 'Nuevo producto';
+  $('productCategory').innerHTML = categoryOptions(product ? product.category : 'Bebidas');
+  $('productName').value = product ? product.name : '';
+  $('productDescription').value = product ? product.description : '';
+  $('productPrice').value = product && product.price != null ? product.price : '';
+  $('productAvailable').checked = product ? product.available : true;
+  $('productAliases').value = product ? (product.aliases || []).join(', ') : '';
+  const hasVariants = Boolean(product && product.variants && product.variants.length);
+  $('productPriceField').hidden = hasVariants;
+  $('productVariantNote').hidden = !hasVariants;
+  $('productDelete').hidden = !product;
+  $('productSave').textContent = product ? 'Guardar cambios' : 'Crear producto';
+  drawDays(product ? product.days : []);
+  drawRecipe(product ? product.recipe : {});
+  updateProductCategoryFields();
+  $('productDialog').showModal();
+  $('productName').focus();
+}
+
+function closeProductDialog() {
+  $('productDialog').close();
+}
+
+async function deleteProduct(productId) {
+  const product = menuItems.find((p) => p.id === productId);
+  const name = product ? product.name : 'este producto';
+  if (!confirm(`¿Borrar "${name}"? Los pedidos ya hechos se conservan.`)) return;
+  try {
+    await api(`/admin/menu/${productId}`, { method: 'DELETE' });
+    if ($('productDialog').open) closeProductDialog();
+    await loadMenu();
+    await loadStatus();
+  } catch (err) {
+    alert('No se pudo borrar: ' + err.message);
+  }
+}
+
+$('addProduct').addEventListener('click', () => openProductDialog());
+$('productCategory').addEventListener('change', updateProductCategoryFields);
+$('productDelete').addEventListener('click', () => {
+  const productId = $('productId').value;
+  if (productId) deleteProduct(productId);
+});
+document.querySelectorAll('[data-close-product]').forEach((button) =>
+  button.addEventListener('click', closeProductDialog));
+$('productDialog').addEventListener('click', (event) => {
+  if (event.target === $('productDialog')) closeProductDialog();
+});
+
+$('productForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const productId = $('productId').value;
+  const name = $('productName').value.trim();
+  const category = $('productCategory').value;
+  if (!name) {
+    $('productFormError').textContent = 'Poné un nombre para el producto.';
+    return;
+  }
+  const body = {
+    name, category,
+    description: $('productDescription').value.trim(),
+    available: $('productAvailable').checked,
+    days: category.startsWith('Combos')
+      ? [...document.querySelectorAll('.productDay:checked')].map((input) => input.value) : [],
+    aliases: $('productAliases').value.split(',').map((value) => value.trim()).filter(Boolean),
+    recipe: Object.fromEntries([...document.querySelectorAll('.recipe-qty')]
+      .map((input) => [input.dataset.id, Number(input.value || 0)])
+      .filter(([, value]) => value > 0)),
+  };
+  if (!$('productPriceField').hidden) {
+    const rawPrice = $('productPrice').value;
+    if (rawPrice === '') {
+      if (productId) body.clear_price = true;
+    } else {
+      body.price = Number(rawPrice);
+    }
+  }
+  const save = $('productSave');
+  save.disabled = true;
+  $('productFormError').textContent = '';
+  try {
+    await api(productId ? `/admin/menu/${productId}` : '/admin/menu', {
+      method: productId ? 'PATCH' : 'POST',
+      body: JSON.stringify(body),
+    });
+    closeProductDialog();
+    await loadMenu();
+    await loadStatus();
+  } catch (err) {
+    $('productFormError').textContent = 'No se pudo guardar: ' + err.message;
+  } finally {
+    save.disabled = false;
+  }
+});
 
 $('menuTable').addEventListener('click', async (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -262,6 +398,14 @@ $('menuTable').addEventListener('click', async (e) => {
     if (!confirm('¿Quitar la foto de este producto?')) return;
     try { await api(`/admin/menu/${card.dataset.id}/image`, { method: 'DELETE' }); loadMenu(); }
     catch (err) { alert('No se pudo quitar: ' + err.message); }
+    return;
+  }
+  if (b.dataset.act === 'edit') {
+    openProductDialog(menuItems.find((product) => product.id === card.dataset.id));
+    return;
+  }
+  if (b.dataset.act === 'delete') {
+    await deleteProduct(card.dataset.id);
     return;
   }
   if (b.dataset.act !== 'price') return;

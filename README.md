@@ -50,7 +50,9 @@ El bot manda este link cuando piden la carta (`carta`, `menú`, `precios`) y des
 ## Panel
 
 `https://<servicio>.onrender.com/panel` — entrar con `ADMIN_TOKEN`.
-Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (ledger por noche, inicial, usado, quedan, "Agotado", valor por defecto), **Carta** (precios simple/doble/triple, disponibilidad y **foto de cada producto** en tarjetas), **Chats** (bandeja con avatares, burbujas, responder, pausar/reactivar bot, marcar resuelto y **borrar el chat del panel**).
+Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (ledger por noche, inicial, usado, quedan, "Agotado", valor por defecto), **Carta** (alta, edición y baja de productos, precios simple/doble/triple, disponibilidad y **foto de cada producto** en tarjetas), **Chats** (bandeja con avatares, burbujas, responder, pausar/reactivar bot, marcar resuelto y **borrar el chat del panel**).
+
+Los productos nuevos se crean con un precio único, categoría, días, receta de insumos y palabras clave. Los productos con variantes siguen editando simple/doble/triple desde la tarjeta. Las bajas quedan registradas y no se recrean al reiniciar el servicio.
 
 ## Despliegue actual (20/11/2026)
 
@@ -93,7 +95,7 @@ py -3.14 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
-Las 54 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, bebida con precio publicada como `drink`, respuesta de bebidas con precios, upsell de bebida + dip al agregar una burger, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser y pedido con extras, subida y borrado de fotos en la base, borrado de chats sin borrar el pedido, y ventana de 24 h.
+Las 61 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, bebida con precio publicada como `drink`, respuesta de bebidas con precios, upsell de bebida + dip al agregar una burger, alta/edición/baja de productos desde el panel, baja permanente de productos sembrados entre reinicios, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser y pedido con extras, subida y borrado de fotos en la base, borrado de chats sin borrar el pedido, y ventana de 24 h.
 
 El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`; después se edita desde el panel o `PUT /admin/content`. Si se cambia `content/negocio.json` o `content/carta.json`, hay que subir el marcador de versión o editar desde el panel, para no pisar cambios hechos por el local.
 

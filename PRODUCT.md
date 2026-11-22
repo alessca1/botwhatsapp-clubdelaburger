@@ -42,6 +42,7 @@ Papel crema, tinta negra, tomate, cheddar y oliva. Fraunces para la voz grande; 
 
 - Mobile first: la mayoría llega desde WhatsApp.
 - Los precios y la disponibilidad salen de la base, nunca hardcodeados.
+- El panel permite crear, editar y borrar productos; los cambios se publican al instante.
 - El upsell de bebida + dip se activa solo cuando la bebida tiene precio.
 - La página pública se sirve en `/carta`; la API en `/public/menu`.
 - Las fotos se guardan en Postgres y se sirven en `/menu/image/{producto}`.

@@ -395,6 +395,102 @@ def test_admin_edits_variant_price(app):
         assert s.get(ProductVariant, 'american-doble').price == 11200
 
 
+def test_admin_creates_product_and_shows_it_in_public_menu(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    r = app.state.client.post('/admin/menu', json={
+        'name': 'Limonada 500 ml', 'category': 'Bebidas', 'description': 'Limonada casera.',
+        'price': 1800, 'available': True,
+    }, headers=h)
+    assert r.status_code == 200, r.text
+    product_id = r.json()['id']
+    assert product_id == 'limonada-500-ml'
+    r2 = app.state.client.post('/admin/menu', json={
+        'name': 'Limonada 500 ml', 'category': 'Bebidas', 'price': 1800,
+    }, headers=h)
+    assert r2.status_code == 200
+    assert r2.json()['id'] != product_id
+    menu = app.state.client.get('/admin/menu', headers=h).json()
+    created = next(p for p in menu if p['id'] == product_id)
+    assert created['name'] == 'Limonada 500 ml' and created['price'] == 1800
+    public = app.state.client.get('/public/menu').json()['products']
+    drink = next(p for p in public if p['id'] == product_id)
+    assert drink['kind'] == 'drink' and drink['price'] == 1800
+
+
+def test_admin_edits_name_category_description_and_price(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    product_id = app.state.client.post('/admin/menu', json={
+        'name': 'Limonada 500 ml', 'category': 'Bebidas', 'price': 1800,
+    }, headers=h).json()['id']
+    r = app.state.client.patch(f'/admin/menu/{product_id}', json={
+        'name': 'Limonada casera 500 ml', 'category': 'Papas y extras',
+        'description': 'Nueva receta.', 'price': 2000, 'available': False,
+        'aliases': ['limonada casera'], 'recipe': {'dip': 1},
+    }, headers=h)
+    assert r.status_code == 200, r.text
+    item = next(p for p in app.state.client.get('/admin/menu', headers=h).json() if p['id'] == product_id)
+    assert item['name'] == 'Limonada casera 500 ml'
+    assert item['category'] == 'Papas y extras' and item['description'] == 'Nueva receta.'
+    assert item['price'] == 2000 and item['available'] is False
+    assert item['aliases'] == ['limonada casera'] and item['recipe'] == {'dip': 1}
+    public = app.state.client.get('/public/menu').json()['products']
+    changed = next(p for p in public if p['id'] == product_id)
+    assert changed['kind'] == 'extra'
+
+
+def test_admin_deletes_product_without_deleting_orders(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    out = place_takeaway(app, '1 american')
+    assert 'Pedido *#1* recibido' in out
+    with app.state.db.session() as s:
+        order = s.scalar(select(Order))
+        order_id, order_total = order.id, order.total
+        assert s.query(ProductVariant).filter_by(product_id='american').count() == 3
+    r = app.state.client.delete('/admin/menu/american', headers=h)
+    assert r.status_code == 200 and r.json()['deleted'] is True
+    with app.state.db.session() as s:
+        assert not s.get(Product, 'american')
+        assert s.query(ProductVariant).filter_by(product_id='american').count() == 0
+        kept = s.get(Order, order_id)
+        assert kept.total == order_total
+    assert all(p['id'] != 'american' for p in app.state.client.get('/public/menu').json()['products'])
+    assert app.state.client.delete('/admin/menu/american', headers=h).status_code == 404
+
+
+def test_deleted_seeded_product_stays_deleted_after_restart(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    assert app.state.client.delete('/admin/menu/honey', headers=h).status_code == 200
+    app.state.db.initialize()
+    with app.state.db.session() as s:
+        assert not s.get(Product, 'honey')
+        assert s.query(ProductVariant).filter_by(product_id='honey').count() == 0
+
+
+def test_admin_deletes_product_image(app):
+    import base64
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=')
+    product_id = app.state.client.post('/admin/menu', json={'name': 'Foto test', 'category': 'Bebidas', 'price': 1000}, headers=h).json()['id']
+    assert app.state.client.post(f'/admin/menu/{product_id}/image', files={'file': ('foto.png', png, 'image/png')}, headers=h).status_code == 200
+    assert app.state.client.get(f'/menu/image/{product_id}').status_code == 200
+    assert app.state.client.delete(f'/admin/menu/{product_id}', headers=h).status_code == 200
+    assert app.state.client.get(f'/menu/image/{product_id}').status_code == 404
+
+
+def test_admin_menu_validates_new_product(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    assert app.state.client.post('/admin/menu', json={'name': '   ', 'category': 'Bebidas'}, headers=h).status_code == 400
+    assert app.state.client.post('/admin/menu', json={
+        'name': 'Producto raro', 'category': 'Bebidas', 'recipe': {'noexiste': 1},
+    }, headers=h).status_code == 400
+
+
+def test_admin_lists_insumos_for_recipe_editor(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    rows = app.state.client.get('/admin/insumos', headers=h).json()
+    assert any(i['id'] == 'medallon' and i['name'] for i in rows)
+
+
 def test_closed_tuesday(app):
     out = send(app, '2 american', TUE_15)
     assert 'Hoy martes no abrimos' in out
@@ -516,6 +612,9 @@ def test_order_keeps_ledger_when_chat_is_deleted(app):
 
 def test_panel_requires_token(app):
     assert app.state.client.get('/admin/orders').status_code == 401
+    assert app.state.client.get('/admin/insumos').status_code == 401
+    assert app.state.client.post('/admin/menu', json={'name': 'X', 'category': 'Bebidas'}).status_code == 401
+    assert app.state.client.delete('/admin/menu/american').status_code == 401
     assert app.state.client.get('/panel').status_code == 200
 
 
