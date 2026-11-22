@@ -319,6 +319,35 @@ function cartLineHTML(line) {
   </div>`;
 }
 
+function upsellHTML() {
+  if (!state.cart.length) return '';
+  const inCart = new Set();
+  state.cart.forEach((line) => {
+    inCart.add(line.id);
+    (line.extras || []).forEach((extra) => inCart.add(extra.id));
+  });
+  const hasKind = (kind) => state.cart.some((line) => line.kind === kind ||
+    (line.extras || []).some((extra) => (state.byId.get(extra.id) || {}).kind === kind));
+  const hasBurger = hasKind('burger') || hasKind('combo');
+  if (!hasBurger) return '';
+  const groups = [];
+  if (!hasKind('drink')) {
+    const drinks = state.products.filter((p) => p.kind === 'drink' && p.available && p.price != null && !inCart.has(p.id));
+    if (drinks.length) groups.push(['Bebidas', drinks]);
+  }
+  if (!hasKind('dip') && !hasKind('combo')) {
+    const dips = state.products.filter((p) => p.kind === 'dip' && p.available && p.price != null && !inCart.has(p.id));
+    if (dips.length) groups.push(['Dips', dips]);
+  }
+  const extras = state.products.filter((p) => p.kind === 'extra' && p.available && p.price != null && !inCart.has(p.id));
+  if (extras.length) groups.push(['Extras', extras]);
+  if (!groups.length) return '';
+  return `<div class="cart-upsell">
+    <div class="cart-upsell-head"><span>Completá tu combo</span><small>Un toque más y listo.</small></div>
+    ${groups.map(([label, products]) => `<div class="upsell-group"><h3>${label}</h3>${products.slice(0, 4).map((p) => `<button type="button" class="upsell-item" data-add="${esc(p.id)}"><span>${esc(p.name)}</span><b>+ ${money(p.price)}</b></button>`).join('')}</div>`).join('')}
+  </div>`;
+}
+
 function updateCartUI() {
   const count = cartCount();
   document.querySelectorAll('[data-cart-count]').forEach((node) => { node.textContent = count; });
@@ -327,7 +356,7 @@ function updateCartUI() {
   const body = document.querySelector('#cartBody');
   if (body) {
     body.innerHTML = state.cart.length
-      ? state.cart.map(cartLineHTML).join('')
+      ? state.cart.map(cartLineHTML).join('') + upsellHTML()
       : '<div class="cart-empty"><p>Tu carrito está vacío.</p><a class="text-link" href="#carta" data-close-dialog>Ver la carta</a></div>';
   }
   const checkout = document.querySelector('#cartCheckout');
@@ -371,13 +400,17 @@ function renderCustomize() {
   const product = state.byId.get(custom.productId);
   if (!product) return;
   const variants = (product.variants || []).filter((v) => v.price != null);
-  const extras = state.products.filter((p) => (p.kind === 'extra' || p.kind === 'dip') && p.available && p.price != null);
+  const extras = [
+    ...state.products.filter((p) => p.kind === 'drink'),
+    ...state.products.filter((p) => p.kind === 'dip'),
+    ...state.products.filter((p) => p.kind === 'extra'),
+  ].filter((p) => p.available && p.price != null);
   const removals = removalOptions(product);
   const sizeSection = variants.length > 1
     ? `<div class="custom-section"><h3>Tamaño</h3><div class="choice-grid">${variants.map((v) => `<button type="button" class="choice-button" data-size="${esc(v.id)}" aria-pressed="${v.id === custom.variantId}">${esc(v.name)} <b>${money(v.price)}</b></button>`).join('')}</div></div>`
     : '';
   const extraSection = extras.length
-    ? `<div class="custom-section"><h3>Sumá algo</h3><div class="check-list">${extras.map((p) => `<label class="check-row"><input type="checkbox" data-extra="${esc(p.id)}" ${custom.extras.has(p.id) ? 'checked' : ''}><span>${esc(p.name)}<small>${esc(p.description)}</small></span><b>+ ${money(p.price)}</b></label>`).join('')}</div></div>`
+    ? `<div class="custom-section"><h3>Completá tu combo</h3><div class="check-list">${extras.map((p) => `<label class="check-row"><input type="checkbox" data-extra="${esc(p.id)}" ${custom.extras.has(p.id) ? 'checked' : ''}><span>${esc(p.name)}<small>${esc(p.description)}</small></span><b>+ ${money(p.price)}</b></label>`).join('')}</div></div>`
     : '';
   const removeSection = removals.length
     ? `<div class="custom-section"><h3>Sacar ingredientes</h3><div class="check-list">${removals.map((label) => `<label class="check-row"><input type="checkbox" data-remove="${esc(label)}" ${custom.removals.has(label) ? 'checked' : ''}><span>${esc(label)}</span><b>sin costo</b></label>`).join('')}</div></div>`
@@ -519,6 +552,7 @@ async function loadMenu() {
   const comboGrid = document.querySelector('#comboGrid');
   const extraList = document.querySelector('#extraList');
   const dipList = document.querySelector('#dipList');
+  const drinkList = document.querySelector('#drinkList');
   try {
     const response = await fetch('/public/menu', { cache: 'no-store' });
     if (!response.ok) throw new Error('menu');
@@ -529,10 +563,12 @@ async function loadMenu() {
     const combos = state.products.filter((p) => p.kind === 'combo');
     const extras = state.products.filter((p) => p.kind === 'extra');
     const dips = state.products.filter((p) => p.kind === 'dip');
+    const drinks = state.products.filter((p) => p.kind === 'drink');
     grid.innerHTML = burgers.map(dishCard).join('') + noteCard();
     comboGrid.innerHTML = combos.map(comboCard).join('') || '<p class="combo-empty">Consultanos por los combos de esta semana.</p>';
-    extraList.innerHTML = extras.map(priceRow).join('') || '<p class="loading">Consultanos por las papas y extras.</p>';
-    dipList.innerHTML = dips.map(priceRow).join('') || '<p class="loading">Consultanos por los dips.</p>';
+    extraList.innerHTML = extras.map(priceRow).join('') || '<p class="list-empty">Consultanos por las papas y extras.</p>';
+    dipList.innerHTML = dips.map(priceRow).join('') || '<p class="list-empty">Consultanos por los dips.</p>';
+    drinkList.innerHTML = drinks.map(priceRow).join('') || '<p class="list-empty">Consultanos por las opciones y precios del día.</p>';
     bindSizes();
     const business = data.business || {};
     document.querySelectorAll('[data-wa-general]').forEach((link) => { link.href = wa('Hola! Quiero hacer un pedido.'); });

@@ -10,8 +10,9 @@ La carta, los horarios y las respuestas del cuestionario `docs/Cuestionario bot 
 - **Días:** miércoles a lunes. Martes cerrado. Abren feriados.
 - **Horario:** 20:00 a 01:00. Último pedido 00:50.
 - **Pedidos anticipados:** desde las 10:00. Primer retiro 20:00; primer delivery 20:30. También se puede pedir para otro día (hasta 30 días).
-- **Carta:** 11 burgers con precio **simple, doble y triple**, papas, extras y dips. El medallón extra cuesta $2.000.
+- **Carta:** 11 burgers con precio **simple, doble y triple**, papas, extras, dips y bebidas. El medallón extra cuesta $2.000. Las bebidas están creadas en la carta pero **sin precio**: se activan cargándoles el precio desde el panel.
 - **Combos:** solo viernes, sábado y domingo. Se elige cualquier variedad menos Crispy Chicken y el dip (mayo de ajo, barbacoa o mostaza miel). No incluyen bebida.
+- **Ticket promedio:** al agregar una burger, el bot y el carrito ofrecen completar el combo con bebida y dip (o con los dips disponibles si todavía no hay bebidas con precio).
 - **Delivery:** propio, hasta 10 km a la redonda. Costo por km; sin pedido mínimo y sin envío gratis. Demora habitual 15-20 min. Retiro en el salón, 10 min.
 - **Pagos:** efectivo y transferencia. Alias `Mathias1998`, titular `Mathias De Dios Juarez Fa.`. Los pedidos anticipados se abonan antes. Llevan cambio. No hacen factura; tarjeta tiene recargo.
 - **Cancelaciones:** el cliente puede cancelar sin costo dentro de los 10 minutos. Después pasa a una persona.
@@ -44,6 +45,7 @@ El bot manda este link cuando piden la carta (`carta`, `menú`, `precios`) y des
 - Mientras no haya foto, la página muestra una ilustración editorial de los ingredientes con la etiqueta "foto pendiente". Cuando subís la foto real, la reemplaza.
 - Las fotos se sirven en `/menu/image/{producto}` y sobreviven a los deploys porque están en la base, no en el disco de Render.
 - **Carrito:** elegís tamaño, extras con costo, ingredientes para sacar y cantidad. El carrito queda guardado en el navegador y el botón de WhatsApp manda el pedido armado en un formato que el bot entiende (`2 x Burger American Doble, sin cebolla`, `2 x Extra medallón`). El bot vuelve a calcular precios y stock; el total de la página es de referencia.
+- **Upsell:** debajo del carrito aparece **Completá tu combo** con bebidas, dips y extras disponibles. Se suma con un toque, sin volver a la carta. En la personalización de cada burger también aparecen bebidas y dips.
 
 ## Panel
 
@@ -91,7 +93,7 @@ py -3.14 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
-Las 49 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser y pedido con extras, subida y borrado de fotos en la base, borrado de chats sin borrar el pedido, y ventana de 24 h.
+Las 54 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, bebida con precio publicada como `drink`, respuesta de bebidas con precios, upsell de bebida + dip al agregar una burger, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser y pedido con extras, subida y borrado de fotos en la base, borrado de chats sin borrar el pedido, y ventana de 24 h.
 
 El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`; después se edita desde el panel o `PUT /admin/content`. Si se cambia `content/negocio.json` o `content/carta.json`, hay que subir el marcador de versión o editar desde el panel, para no pisar cambios hechos por el local.
 
@@ -100,6 +102,6 @@ El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`;
 - WhatsApp solo permite escribirle al cliente hasta 24 h después de su último mensaje. Los pedidos para otro día se confirman en el momento; los avisos de estado muy posteriores pueden quedar vencidos.
 - Los pedidos de PedidosYa y del salón no pasan por el bot: si comparten stock hay que descontarlos en el panel.
 - El bot no lee comprobantes: marca "comprobante recibido" y lo verifica una persona.
-- Las bebidas no tienen precio cargado en la carta: el bot consulta con una persona antes de venderlas.
+- Las bebidas están creadas en la carta pero sin precio: hasta cargarlas desde el panel, el bot consulta con una persona antes de venderlas y el carrito muestra solo dips/extras en el upsell.
 - El cuestionario cargó **10 porciones de papas por noche**; cada burger descuenta 1. Si en realidad son 10 bolsas/kilos, ajustar el stock inicial desde el panel para que no se agote después de 10 burgers.
 - No hay plantilla de WhatsApp para reabrir conversaciones vencidas.

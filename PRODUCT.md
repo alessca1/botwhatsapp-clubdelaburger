@@ -17,6 +17,7 @@ Que puedan ver la carta completa, entender los tamaños y precios, y abrir Whats
 - 11 burgers, con variantes simple, doble y triple.
 - Precios directos por WhatsApp, no los de PedidosYa.
 - Combos solo viernes, sábado y domingo; no incluyen bebida.
+- Bebidas cargadas en la carta, con precio a completar desde el panel.
 - Delivery propio hasta 10 km, a cotizar por km. Retiro en el salón.
 - Efectivo o transferencia. Alias Mathias1998.
 - Los pedidos anticipados se abonan antes. Se toman desde las 10:00.
@@ -41,5 +42,6 @@ Papel crema, tinta negra, tomate, cheddar y oliva. Fraunces para la voz grande; 
 
 - Mobile first: la mayoría llega desde WhatsApp.
 - Los precios y la disponibilidad salen de la base, nunca hardcodeados.
+- El upsell de bebida + dip se activa solo cuando la bebida tiene precio.
 - La página pública se sirve en `/carta`; la API en `/public/menu`.
 - Las fotos se guardan en Postgres y se sirven en `/menu/image/{producto}`.

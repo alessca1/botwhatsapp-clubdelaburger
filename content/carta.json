@@ -123,6 +123,21 @@
      "precio": 700, "receta": {"dip": 1}},
     {"id": "dip-mayo", "categoria": "Dips", "nombre": "Dip mayo casera", "alias": ["dip mayo", "mayo casera", "dip mayonesa"],
      "descripcion": "Dip de mayo casera.",
-     "precio": 800, "receta": {"dip": 1}}
+     "precio": 800, "receta": {"dip": 1}},
+    {"id": "bebida-gaseosa", "categoria": "Bebidas", "nombre": "Gaseosa cola 500 ml", "alias": ["gaseosa cola", "gaseosa", "coca", "coca cola", "cola", "coca de 500"],
+     "descripcion": "Botella de 500 ml. Si querés zero, aclaralo en el pedido.",
+     "precio": null},
+    {"id": "bebida-gaseosa-lima", "categoria": "Bebidas", "nombre": "Gaseosa lima-limón 500 ml", "alias": ["gaseosa lima", "lima limon", "lima-limón", "sprite", "seven up", "7up"],
+     "descripcion": "Botella de 500 ml, sabor lima-limón.",
+     "precio": null},
+    {"id": "bebida-agua", "categoria": "Bebidas", "nombre": "Agua mineral 500 ml", "alias": ["agua", "agua mineral", "agua sin gas"],
+     "descripcion": "Botella de agua mineral sin gas, 500 ml.",
+     "precio": null},
+    {"id": "bebida-agua-gas", "categoria": "Bebidas", "nombre": "Agua con gas 500 ml", "alias": ["agua con gas", "agua gasificada", "soda"],
+     "descripcion": "Botella de agua con gas, 500 ml.",
+     "precio": null},
+    {"id": "bebida-cerveza", "categoria": "Bebidas", "nombre": "Cerveza 1 L", "alias": ["cerveza", "birra", "cerveza litro", "litro"],
+     "descripcion": "Cerveza rubia de 1 litro. Consultá la marca disponible.",
+     "precio": null}
   ]
 }

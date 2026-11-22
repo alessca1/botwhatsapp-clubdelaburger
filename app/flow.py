@@ -29,6 +29,7 @@ RE_DELIVERY = re.compile(r'\b(delivery|envios?|envian|envias|llevan|llegan|repar
 RE_PAY = re.compile(r'\b(pago|pagar|transferencia|transferir|efectivo|alias|cbu|mercado ?pago|tarjeta|debito|credito|factura|cambio|vuelto)\b')
 RE_COMBO = re.compile(r'\b(combos?)\b')
 RE_PROMO = re.compile(r'\b(promos?|promociones?|descuentos?)\b')
+RE_DRINK = re.compile(r'\b(bebidas?|gaseosas?|cocas?|sprite|agua|cervezas?|birras?|tragos?)\b')
 RE_STATUS = re.compile(r'\b(mi pedido|estado|ya sale|donde esta mi)\b')
 RE_PEDIDOSYA = re.compile(r'pedidos ?ya')
 RE_DONE = re.compile(r'^(listo|eso|eso es todo|nada mas|no|no gracias|nada|seria todo|es todo|ya esta|solo eso|terminar|cart_done)\b')
@@ -222,6 +223,10 @@ class Flow:
             return self.say(self._payment_text())
         if RE_HOURS.search(t) or t == 'horarios':
             return self.say(self._hours_text())
+        if RE_DRINK.search(t):
+            drinks = self._drinks_text()
+            if drinks:
+                return self.say(drinks)
         entry = self._faq_match(t)
         if entry:
             return self._faq_answer(entry)
@@ -263,6 +268,13 @@ class Flow:
         if self.negocio.get('card_surcharge'):
             lines.append('Consultanos por tarjeta: tiene recargo.')
         return '\n'.join(lines)
+
+    def _drinks_text(self):
+        drinks = [i for i in self.items if i.kind == 'drink' and i.available and i.price is not None]
+        if not drinks:
+            return None
+        lines = '\n'.join(f'• {i.name} — {money(i.price)}' for i in drinks)
+        return f'🥤 *Bebidas:*\n{lines}\n\n¿Querés sumar alguna al pedido?'
 
     def _combos_text(self):
         combos = [i for i in self.items if i.days and i.price is not None and i.available]
@@ -341,7 +353,7 @@ class Flow:
     # ---------- order flow
     def _reset(self, ctx):
         for key in ('step', 'cart', 'mode', 'address', 'slot', 'payment', 'service_date',
-                    'slot_options', 'requested_day'):
+                    'slot_options', 'requested_day', 'upsell_sent'):
             ctx.pop(key, None)
 
     @staticmethod
@@ -459,8 +471,40 @@ class Flow:
                      [{'title': 'Listo, seguir', 'payload': 'cart_done'},
                       {'title': 'Agregar más', 'payload': 'cart_more'},
                       {'title': 'Cancelar', 'payload': 'cancelar'}])
+            upsell = self._upsell_text(ctx)
+            if upsell:
+                self.say(upsell)
         else:
             self.say('¿Qué otra cosa te gustaría pedir? Si querés ver la carta escribí *carta*.')
+
+    def _upsell_text(self, ctx):
+        if ctx.get('upsell_sent'):
+            return None
+        cart = ctx.get('cart') or []
+        if not cart:
+            return None
+        kinds = {self.by_id[l['id']].kind for l in cart if l['id'] in self.by_id}
+        if not kinds & {'burger', 'combo'}:
+            return None
+        in_cart = {l['id'] for l in cart}
+        parts = []
+        if 'drink' not in kinds:
+            drinks = [i for i in self.items
+                      if i.kind == 'drink' and i.available and i.price is not None and i.id not in in_cart]
+            if drinks:
+                shown = ' · '.join(f'{i.name} {money(i.price)}' for i in drinks[:3])
+                parts.append('🥤 ' + shown + ('…' if len(drinks) > 3 else ''))
+        if 'dip' not in kinds and 'combo' not in kinds:
+            dips = [i for i in self.items
+                    if i.kind == 'dip' and i.available and i.price is not None and i.id not in in_cart]
+            if dips:
+                shown = ' · '.join(f'{i.name} {money(i.price)}' for i in dips[:3])
+                parts.append('🍯 ' + shown + ('…' if len(dips) > 3 else ''))
+        if not parts:
+            return None
+        ctx['upsell_sent'] = True
+        return ('🍟 *Completá tu combo:*\n' + '\n'.join(parts) +
+                '\n\nSumalo por nombre o seguí con *listo*.')
 
     def _ask_mode(self, ctx):
         options = []

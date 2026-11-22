@@ -216,6 +216,50 @@ def test_bot_sends_menu_link(app):
     assert 'La carta completa' in out and 'https://clubdelaburger-whatsapp.onrender.com/carta' in out
 
 
+def test_priced_drink_is_public_with_kind_drink(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    r = app.state.client.patch('/admin/menu/bebida-gaseosa', json={'price': 2500}, headers=h)
+    assert r.status_code == 200, r.text
+    menu = app.state.client.get('/public/menu').json()
+    drink = next(p for p in menu['products'] if p['id'] == 'bebida-gaseosa')
+    assert drink['kind'] == 'drink' and drink['price'] == 2500
+
+
+def test_bot_lists_priced_drinks_instead_of_deriving(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    assert app.state.client.patch('/admin/menu/bebida-gaseosa', json={'price': 2500}, headers=h).status_code == 200
+    out = send(app, '¿Qué bebidas tienen?', WED_21)
+    assert 'Gaseosa cola 500 ml' in out and '$2.500' in out
+    assert 'Te paso con el equipo' not in out
+
+
+def test_bot_offers_combo_upsell_after_burger(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    assert app.state.client.patch('/admin/menu/bebida-gaseosa', json={'price': 2500}, headers=h).status_code == 200
+    out = send(app, '1 american', WED_21)
+    assert 'Completá tu combo' in out
+    assert 'Gaseosa cola 500 ml' in out and '$2.500' in out
+    assert 'Dip cheddar' in out and '$1.000' in out
+
+
+def test_no_combo_upsell_when_cart_has_drink_and_dip(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    assert app.state.client.patch('/admin/menu/bebida-gaseosa', json={'price': 2500}, headers=h).status_code == 200
+    out = send(app, '1 american y 1 gaseosa cola y 1 dip cheddar', WED_21)
+    assert 'Completá tu combo' not in out
+    with app.state.db.session() as s:
+        ctx = app.state.db.unpack(s.get(Conversation, 'club-2643179759:5492641111111').context)
+    assert {line['id'] for line in ctx['cart']} == {'american', 'bebida-gaseosa', 'dip-cheddar'}
+
+
+def test_combo_upsell_suggests_drink_but_not_dip(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    assert app.state.client.patch('/admin/menu/bebida-gaseosa', json={'price': 2500}, headers=h).status_code == 200
+    out = send(app, '1 combo 1', FRI_12)
+    assert 'Gaseosa cola 500 ml' in out and '$2.500' in out
+    assert 'Dip cheddar' not in out
+
+
 def test_parse_items_and_variants(app):
     with app.state.db.session() as s:
         items = load_items(s)

@@ -16,7 +16,7 @@ from app.config import Settings
 from app.db import (Database, Conversation, Content, Event, Outbox, Message, Order, Product,
                     ProductVariant, ProductImage, Insumo, DailyStock, Audit)
 from app.hours import Schedule
-from app.menu import load_items, money
+from app.menu import load_items, money, product_kind
 from app.service import Bot
 from app.zernio import ingest_zernio
 from app import stock as stockmod
@@ -88,15 +88,6 @@ def create_app(settings=None, run_worker=True, llm=None):
             raise HTTPException(503, 'Servicio no disponible')
 
     # ---------- public menu
-    def _product_kind(category):
-        if category.startswith('Burgers'):
-            return 'burger'
-        if category.startswith('Combos'):
-            return 'combo'
-        if category == 'Dips':
-            return 'dip'
-        return 'extra'
-
     def _fallback_html(items, negocio):
         groups = {}
         for item in items:
@@ -146,7 +137,7 @@ def create_app(settings=None, run_worker=True, llm=None):
                 if item.price is None and not item.variants:
                     continue
                 products.append({
-                    'id': item.id, 'code': item.code, 'kind': _product_kind(item.category),
+                    'id': item.id, 'code': item.code, 'kind': item.kind,
                     'category': item.category, 'name': item.name, 'description': item.description,
                     'price': item.price, 'available': item.available, 'days': item.days,
                     'variants': [{'id': v.id, 'name': v.name, 'price': v.price}

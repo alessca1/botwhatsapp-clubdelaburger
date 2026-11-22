@@ -22,6 +22,18 @@ def money(value):
     return '$' + f'{int(value):,}'.replace(',', '.')
 
 
+def product_kind(category):
+    if str(category or '').startswith('Burgers'):
+        return 'burger'
+    if str(category or '').startswith('Combos'):
+        return 'combo'
+    if category == 'Dips':
+        return 'dip'
+    if category == 'Bebidas':
+        return 'drink'
+    return 'extra'
+
+
 @dataclass
 class Variant:
     id: str
@@ -43,6 +55,10 @@ class Item:
     aliases: list = field(default_factory=list)
     variants: list = field(default_factory=list)
     code: int = 0
+
+    @property
+    def kind(self):
+        return product_kind(self.category)
 
     def sells_on(self, service_date):
         return not self.days or DAYS[service_date.weekday()] in self.days
