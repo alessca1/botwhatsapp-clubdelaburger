@@ -163,7 +163,15 @@ def _qty_before(text):
 
 def parse_items(text, items):
     """Deterministic parser: returns [(item, qty, note, variant)] in text order."""
-    t = normalized(text)
+    combo_choices = {}
+    clean_lines = []
+    for line in str(text or '').splitlines():
+        match = re.match(r'^\s*elecciones\s+del\s+combo\s+(.+?)\s*:\s*(.+?)\s*$', line, re.I)
+        if match:
+            combo_choices.setdefault(normalized(f'combo {match.group(1)}'), []).append(match.group(2).strip())
+        else:
+            clean_lines.append(line)
+    t = normalized('\n'.join(clean_lines))
     found, taken = [], [False] * len(t)
     # "2 de la 8" / "1 de la 3" / "#8"
     by_code = {i.code: i for i in items}
@@ -193,7 +201,7 @@ def parse_items(text, items):
         if m:
             filler = r'(?:\s+(?:y|e|mas|\d+|' + '|'.join(NUMBER_WORDS) + r'))+\s*$'
             note = re.sub(filler, '', ' ' + m.group(1).strip()).strip()
-        result.append((item, max(1, min(MAX_QTY, qty)), note[:80],
+        result.append((item, max(1, min(MAX_QTY, qty)), note[:240],
                        variant.id if variant else (item.variants[0].id if item.variants else None)))
     # Bare menu number reply: "8" or "8 y 3".
     if not result and re.fullmatch(r'[\d\s,y]+', t):
@@ -201,6 +209,12 @@ def parse_items(text, items):
             if int(code) in by_code:
                 item = by_code[int(code)]
                 result.append((item, 1, '', item.variants[0].id if item.variants else None))
+    for index, (item, qty, note, variant) in enumerate(result):
+        key = normalized(item.name)
+        if item.kind != 'combo' or not combo_choices.get(key):
+            continue
+        choices = combo_choices[key].pop(0)
+        result[index] = (item, qty, (f'{note}; {choices}' if note else choices)[:240], variant)
     return result
 
 

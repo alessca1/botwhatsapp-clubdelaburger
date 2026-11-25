@@ -7,6 +7,11 @@ const wa = (text) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 
 const state = { products: [], byId: new Map(), selected: new Map(), cart: [], customizing: null };
 const CART_KEY = 'club-cart-v1';
+const COMBO_RULES = {
+  combo1: { burgers: 2, size: 'Doble', dips: 1 },
+  combo2: { burgers: 1, size: 'Triple', dips: 1 },
+  combo3: { burgers: 4, size: 'Doble', dips: 2 },
+};
 
 function readCart() {
   try {
@@ -229,6 +234,101 @@ function removalOptions(product) {
   }).map(([, label]) => label);
 }
 
+function serviceWeekday() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/San_Juan', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date());
+  const part = (type) => Number(parts.find((item) => item.type === type).value);
+  const local = new Date(Date.UTC(part('year'), part('month') - 1, part('day'), part('hour')));
+  if (part('hour') < 1) local.setUTCDate(local.getUTCDate() - 1);
+  return ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][local.getUTCDay()];
+}
+
+function comboAvailableToday(combo) {
+  const days = combo.days || [];
+  return !days.length || days.includes(serviceWeekday());
+}
+
+function comboUnits(rule) {
+  const units = [];
+  state.cart.forEach((line) => {
+    if (line.kind !== 'burger' || line.id === 'crispy') return;
+    if (String(line.variantName || '').trim().toLowerCase() !== rule.size.toLowerCase()) return;
+    const price = Number(line.basePrice ?? line.unit ?? 0);
+    const choices = line.removals && line.removals.length ? `, ${line.removals.join(' y ')}` : '';
+    const label = `${line.name}${line.variantName ? ` ${line.variantName}` : ''}${choices}`;
+    for (let i = 0; i < line.qty; i += 1) units.push({ key: line.key, price, label });
+  });
+  if (units.length < rule.burgers) return null;
+  return units.sort((a, b) => b.price - a.price).slice(0, rule.burgers);
+}
+
+function comboOptions() {
+  const dips = state.products.filter((product) => product.kind === 'dip' && product.available && product.price != null);
+  const candidates = [];
+  state.products
+    .filter((product) => product.kind === 'combo' && product.available && product.price != null)
+    .forEach((combo) => {
+      const rule = COMBO_RULES[combo.id];
+      if (!rule || !comboAvailableToday(combo)) return;
+      if (dips.length < rule.dips) return;
+      const units = comboUnits(rule);
+      if (!units) return;
+      const baseTotal = units.reduce((sum, unit) => sum + unit.price, 0);
+      const savings = baseTotal - combo.price;
+      if (savings <= 0) return;
+      candidates.push({ combo, rule, units, baseTotal, savings });
+    });
+  return candidates.sort((a, b) => b.savings - a.savings);
+}
+
+function comboSuggestionHTML() {
+  const candidates = comboOptions();
+  if (!candidates.length) return '';
+  const { combo, rule, baseTotal, savings } = candidates[0];
+  const dips = state.products.filter((product) => product.kind === 'dip' && product.available && product.price != null);
+  const selects = Array.from({ length: rule.dips }, (_, index) => `<label>Dip ${index + 1}<select data-combo-dip="${index}">${dips.map((dip, dipIndex) => `<option value="${esc(dip.name)}"${dipIndex === index ? ' selected' : ''}>${esc(dip.name)}</option>`).join('')}</select></label>`).join('');
+  return `<div class="combo-suggest">
+    <div class="combo-suggest-top"><span>Combo sugerido</span><b>Ahorrás ${money(savings)}</b></div>
+    <h3>${esc(combo.name)}</h3>
+    <p>${esc(combo.description)}</p>
+    <div class="combo-suggest-price"><strong>${money(combo.price)}</strong><span>vs. ${money(baseTotal)} en burgers</span></div>
+    <div class="combo-dips">${selects}</div>
+    <button type="button" class="combo-suggest-button" data-combo-suggest="${esc(combo.id)}">Cambiar por este combo</button>
+  </div>`;
+}
+
+function applyComboSuggestion(comboId) {
+  const candidate = comboOptions().find((option) => option.combo.id === comboId);
+  if (!candidate) return;
+  const fallbackDips = state.products
+    .filter((product) => product.kind === 'dip' && product.available && product.price != null)
+    .map((dip) => dip.name);
+  const dipSelects = [...document.querySelectorAll('[data-combo-dip]')];
+  const dips = Array.from({ length: candidate.rule.dips }, (_, index) =>
+    (dipSelects[index] && dipSelects[index].value) || fallbackDips[index]).filter(Boolean);
+  const chosen = new Map();
+  candidate.units.forEach((unit) => chosen.set(unit.key, (chosen.get(unit.key) || 0) + 1));
+  state.cart = state.cart.flatMap((line) => {
+    const take = chosen.get(line.key) || 0;
+    if (!take) return [line];
+    const qty = line.qty - take;
+    return qty > 0 ? [{ ...line, qty, total: line.unit * qty }] : [];
+  });
+  const grouped = new Map();
+  candidate.units.forEach((unit) => grouped.set(unit.label, (grouped.get(unit.label) || 0) + 1));
+  const burgerChoices = [...grouped].map(([label, qty]) => `${qty} x ${label}`).join(', ');
+  addLine({
+    key: `combo|${candidate.combo.id}|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`,
+    kind: 'combo', id: candidate.combo.id, name: candidate.combo.name,
+    variantId: null, variantName: '', basePrice: candidate.combo.price, unit: candidate.combo.price,
+    qty: 1, extras: [], removals: [], total: candidate.combo.price,
+    comboChoices: `${burgerChoices}. Dips: ${dips.join(', ')}`,
+  });
+  toast(`${candidate.combo.name} agregado`);
+}
+
 function cartCount() {
   return state.cart.reduce((sum, line) => sum + line.qty, 0);
 }
@@ -250,6 +350,11 @@ function cartMessage() {
         current.qty += line.qty * (extra.count || 1);
         extras.set(extra.id, current);
       });
+    } else if (line.kind === 'combo') {
+      lines.push(`${line.qty} x ${line.name}.`);
+      if (line.comboChoices) {
+        lines.push(`Elecciones del ${line.name}: ${line.comboChoices}.`);
+      }
     } else {
       lines.push(`${line.qty} x ${line.name}.`);
     }
@@ -305,15 +410,18 @@ function cartLineHTML(line) {
         <strong>${line.qty} x ${esc(line.name)}${line.variantName ? ` ${esc(line.variantName)}` : ''}</strong>
         ${extras ? `<span class="cart-sub">${extras}</span>` : ''}
         ${removals ? `<span class="cart-sub">${removals}</span>` : ''}
+        ${line.comboChoices ? `<span class="cart-sub combo-choices">${esc(line.comboChoices)}</span>` : ''}
       </div>
       <b>${money(line.total)}</b>
     </div>
     <div class="cart-line-actions">
-      <div class="qty-mini">
+      ${line.kind === 'combo' && line.comboChoices
+        ? '<span class="cart-fixed-qty">Combo configurado</span>'
+        : `<div class="qty-mini">
         <button type="button" data-cart-minus aria-label="Restar uno">−</button>
         <span>${line.qty}</span>
         <button type="button" data-cart-plus aria-label="Sumar uno">+</button>
-      </div>
+      </div>`}
       <button type="button" class="cart-remove" data-cart-remove>Quitar</button>
     </div>
   </div>`;
@@ -343,7 +451,7 @@ function upsellHTML() {
   if (extras.length) groups.push(['Extras', extras]);
   if (!groups.length) return '';
   return `<div class="cart-upsell">
-    <div class="cart-upsell-head"><span>Completá tu combo</span><small>Un toque más y listo.</small></div>
+    <div class="cart-upsell-head"><span>Sumá algo más</span><small>Para completar el pedido.</small></div>
     ${groups.map(([label, products]) => `<div class="upsell-group"><h3>${label}</h3>${products.slice(0, 4).map((p) => `<button type="button" class="upsell-item" data-add="${esc(p.id)}"><span>${esc(p.name)}</span><b>+ ${money(p.price)}</b></button>`).join('')}</div>`).join('')}
   </div>`;
 }
@@ -356,7 +464,7 @@ function updateCartUI() {
   const body = document.querySelector('#cartBody');
   if (body) {
     body.innerHTML = state.cart.length
-      ? state.cart.map(cartLineHTML).join('') + upsellHTML()
+      ? state.cart.map(cartLineHTML).join('') + comboSuggestionHTML() + upsellHTML()
       : '<div class="cart-empty"><p>Tu carrito está vacío.</p><a class="text-link" href="#carta" data-close-dialog>Ver la carta</a></div>';
   }
   const checkout = document.querySelector('#cartCheckout');
@@ -474,6 +582,8 @@ function addCustom() {
 document.addEventListener('click', (event) => {
   const open = event.target.closest('[data-cart-open]');
   if (open) { openCart(); return; }
+  const comboSuggest = event.target.closest('[data-combo-suggest]');
+  if (comboSuggest) { applyComboSuggestion(comboSuggest.dataset.comboSuggest); return; }
   const add = event.target.closest('[data-add]');
   if (add) {
     const product = state.byId.get(add.dataset.add);

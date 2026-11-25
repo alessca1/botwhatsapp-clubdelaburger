@@ -623,7 +623,23 @@ dialog::backdrop { background: var(--scrim); backdrop-filter: blur(3px); }
 .qty-mini button { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 2px; background: transparent; color: var(--ink); font-size: 16px; cursor: pointer; }
 .qty-mini button:hover { border-color: var(--ink); background: var(--paper-deep); }
 .qty-mini span { min-width: 26px; text-align: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cart-fixed-qty { color: var(--ink-soft); font-size: 10px; }
 .cart-remove { min-height: 40px; padding: 4px 0; border: 0; background: transparent; color: var(--tomato-deep); font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.combo-suggest { margin-top: 22px; padding: 16px; border: 1px solid var(--ink); background: var(--cheddar); color: var(--ink); box-shadow: 4px 4px 0 var(--tomato); }
+.combo-suggest-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.combo-suggest-top span { font-size: 9px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
+.combo-suggest-top b { padding: 4px 7px; background: var(--tomato); color: var(--paper-light); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.combo-suggest h3 { margin: 12px 0 4px; font-family: var(--display); font-size: 26px; font-weight: 900; line-height: 0.92; letter-spacing: -0.04em; }
+.combo-suggest p { margin: 0; color: var(--ink-soft); font-size: 10px; line-height: 1.4; }
+.combo-suggest-price { display: flex; align-items: baseline; gap: 9px; margin-top: 12px; }
+.combo-suggest-price strong { font-family: var(--display); font-size: 28px; font-weight: 900; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.combo-suggest-price span { color: var(--ink-soft); font-size: 10px; }
+.combo-dips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.combo-dips label { display: grid; gap: 4px; color: var(--ink-soft); font-size: 9px; font-weight: 600; }
+.combo-dips select { width: 100%; min-height: 36px; padding: 6px 7px; border-color: var(--ink); background: var(--paper-light); color: var(--ink); font-size: 11px; }
+.combo-suggest-button { width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid var(--ink); border-radius: 2px; background: var(--ink); color: var(--paper-light); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.combo-suggest-button:hover { background: var(--tomato-deep); border-color: var(--tomato-deep); }
+.cart-sub.combo-choices { color: var(--ink-soft); font-size: 10px; line-height: 1.35; }
 .cart-upsell { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--ink); }
 .cart-upsell-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .cart-upsell-head span { font-family: var(--display); font-size: 23px; font-weight: 900; line-height: 0.95; letter-spacing: -0.04em; }

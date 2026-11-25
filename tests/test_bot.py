@@ -182,6 +182,57 @@ def test_cart_message_creates_order_with_extras(app):
         assert any(i['name'] == 'Extra medallón' and i['qty'] == 2 for i in items)
 
 
+def test_combo_choices_line_is_not_parsed_as_extra_burgers(app):
+    with app.state.db.session() as s:
+        items = load_items(s)
+        combo = next(i for i in items if i.id == 'combo3')
+    text = ('Hola! Quiero hacer este pedido:\n'
+            '1 x Combo 3 Amistad.\n'
+            f'Elecciones del {combo.name}: 2 x Burger American Doble, '
+            '2 x Burger Cheese Doble. Dips: Dip cheddar, Dip barbacoa.')
+    got = [(i.id, qty, note, variant) for i, qty, note, variant in parse_items(text, items)]
+    assert len(got) == 1
+    item_id, qty, note, variant = got[0]
+    assert item_id == 'combo3' and qty == 1
+    assert 'Burger American Doble' in note and 'Dip cheddar' in note
+
+
+def test_multiple_combo_choices_attach_to_their_combo_in_order(app):
+    with app.state.db.session() as s:
+        items = load_items(s)
+        combo = next(i for i in items if i.id == 'combo3')
+    text = ('Hola! Quiero hacer este pedido:\n'
+            '1 x Combo 3 Amistad.\n'
+            f'Elecciones del {combo.name}: 2 x Burger American Doble, 2 x Burger Cheese Doble. Dips: Dip cheddar, Dip barbacoa.\n'
+            '1 x Combo 3 Amistad.\n'
+            f'Elecciones del {combo.name}: 2 x Burger Clásica Doble, 2 x Burger Honey Doble. Dips: Dip mayo casera, Dip cheddar.')
+    got = [(i.id, qty, note) for i, qty, note, _ in parse_items(text, items)]
+    assert len(got) == 2
+    assert all(item_id == 'combo3' and qty == 1 for item_id, qty, _ in got)
+    assert 'Burger American Doble' in got[0][2] and 'Dip barbacoa' in got[0][2]
+    assert 'Burger Clásica Doble' in got[1][2] and 'Dip mayo casera' in got[1][2]
+
+
+def test_cart_message_with_combo_choices_creates_one_combo(app):
+    with app.state.db.session() as s:
+        items = load_items(s)
+        combo = next(i for i in items if i.id == 'combo3')
+    cart = ('Hola! Quiero hacer este pedido:\n'
+            '1 x Combo 3 Amistad.\n'
+            f'Elecciones del {combo.name}: 2 x Burger American Doble, '
+            '2 x Burger Cheese Doble. Dips: Dip cheddar, Dip barbacoa.')
+    for step in [cart, 'listo', 'retiro', 'Juan', '1', 'efectivo', 'si']:
+        out = send(app, step, FRI_21)
+    assert 'Pedido *#1* recibido' in out
+    with app.state.db.session() as s:
+        order = s.scalar(select(Order))
+        assert order.total == 37000
+        saved = app.state.db.unpack(order.data)['items']
+        assert len(saved) == 1
+        assert saved[0]['name'] == 'Combo 3 Amistad' and saved[0]['qty'] == 1
+        assert 'Burger American Doble' in saved[0]['note'] and 'Dip barbacoa' in saved[0]['note']
+
+
 def test_public_menu_page_and_photo_upload(app):
     import base64
     client = app.state.client
