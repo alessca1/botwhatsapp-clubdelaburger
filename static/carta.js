@@ -12,6 +12,10 @@ const COMBO_RULES = {
   combo2: { burgers: 1, size: 'Triple', dips: 1 },
   combo3: { burgers: 4, size: 'Doble', dips: 2 },
 };
+const DAY_LABELS = {
+  lunes: 'lunes', martes: 'martes', miercoles: 'miércoles', jueves: 'jueves',
+  viernes: 'viernes', sabado: 'sábado', domingo: 'domingo',
+};
 
 function readCart() {
   try {
@@ -289,7 +293,10 @@ function comboSuggestionHTML() {
   const { combo, rule, baseTotal, savings, availableToday } = candidates[0];
   const dips = state.products.filter((product) => product.kind === 'dip' && product.available && product.price != null);
   const selects = Array.from({ length: rule.dips }, (_, index) => `<label>Dip ${index + 1}<select data-combo-dip="${index}">${dips.map((dip, dipIndex) => `<option value="${esc(dip.name)}"${dipIndex === index ? ' selected' : ''}>${esc(dip.name)}</option>`).join('')}</select></label>`).join('');
-  const days = (combo.days || []).join(', ');
+  const dayLabels = (combo.days || []).map((day) => DAY_LABELS[day] || day);
+  const days = dayLabels.length > 1
+    ? `${dayLabels.slice(0, -1).join(', ')} y ${dayLabels[dayLabels.length - 1]}`
+    : (dayLabels[0] || '');
   const availability = availableToday
     ? '<div class="combo-availability-row"><span class="combo-availability">Disponible hoy</span></div>'
     : `<div class="combo-availability-row"><span class="combo-availability">Válido ${esc(days)}</span><span>Pedilo para uno de esos días.</span></div>`;
