@@ -447,6 +447,23 @@ main { width: 100%; max-width: 1700px; margin: 0 auto; padding: 22px 28px 44px; 
 .switch input:focus-visible + .switch-track { outline: 2px solid var(--cheddar); outline-offset: 2px; }
 .menu-card.is-uploading .photo-upload { opacity: 0.55; pointer-events: none; }
 
+/* ---------- promo admin ---------- */
+.promo-admin { margin: 18px 0 22px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-2); }
+.promo-admin-bar { align-items: start; margin: 0 0 12px; }
+.promo-admin-bar h3 { margin: 0; color: var(--paper); font-family: var(--display); font-size: 24px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; }
+.promo-admin-bar .section-note { max-width: 68ch; margin-top: 5px; }
+.promo-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.promo-admin-card { padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.promo-admin-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.promo-admin-head time { color: var(--dim); font-size: 9px; }
+.promo-admin-card h4 { margin: 0 0 3px; color: var(--paper); font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+.promo-admin-product { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.promo-admin-price { display: flex; align-items: baseline; gap: 7px; margin-top: 8px; color: var(--paper); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.promo-admin-price s { color: var(--dim); font-size: 10px; font-weight: 400; }
+.promo-admin-window { margin: 5px 0 9px; color: var(--dim); font-size: 9px; line-height: 1.4; }
+.promo-admin-card .menu-admin-actions { margin-top: 0; }
+.promo-preview { margin: 0; padding: 10px 12px; border: 1px dashed var(--line-2); color: var(--cheddar); font-size: 11px; line-height: 1.4; }
+
 /* ---------- product editor ---------- */
 .product-dialog {
   width: min(720px, calc(100% - 24px));
@@ -580,6 +597,8 @@ main { width: 100%; max-width: 1700px; margin: 0 auto; padding: 22px 28px 44px; 
   .section-stamp { justify-self: start; }
   .board { grid-template-columns: 1fr; }
   .menu-admin-grid { grid-template-columns: 1fr; }
+  .promo-admin-grid { grid-template-columns: 1fr; }
+  .promo-admin-bar { display: grid; gap: 8px; }
   .menu-photo { aspect-ratio: 16 / 9; }
   .form-grid, .recipe-grid { grid-template-columns: 1fr; }
   .product-form-head, .product-form-actions { padding-left: 16px; padding-right: 16px; }

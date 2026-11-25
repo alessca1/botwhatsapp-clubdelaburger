@@ -7,7 +7,7 @@ import uuid
 import httpx
 from sqlalchemy import select, text as sql_text
 from sqlalchemy.exc import IntegrityError
-from app.db import Conversation, Event, Outbox, Message, Content, Order, Audit
+from app.db import Conversation, Event, Outbox, Message, Content, Order, Audit, Promo
 from app.flow import Flow
 from app.llm import LLM
 from app.menu import load_items, money
@@ -112,7 +112,10 @@ class Bot:
                 for key in ('step', 'cart', 'mode', 'address', 'slot', 'payment', 'service_date', 'slot_options'):
                     ctx.pop(key, None)
             negocio = self.negocio(s)
-            flow = Flow(s, self.db, negocio, load_items(s), now, self.llm)
+            promos = list(s.scalars(select(Promo).where(
+                Promo.active == True, Promo.starts_at <= now, Promo.ends_at > now)
+                .order_by(Promo.position, Promo.created.desc())))
+            flow = Flow(s, self.db, negocio, load_items(s), now, self.llm, promos=promos)
             ctx = await flow.handle(ctx, payload.get('text', ''), payload.get('kind', 'text'),
                                     payload.get('name', ''))
             ctx['touched'] = now

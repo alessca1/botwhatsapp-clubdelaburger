@@ -5,7 +5,7 @@ const money = (value) => '$' + new Intl.NumberFormat('es-AR', { maximumFractionD
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wa = (text) => `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 
-const state = { products: [], byId: new Map(), selected: new Map(), cart: [], customizing: null };
+const state = { products: [], promos: [], byId: new Map(), selected: new Map(), cart: [], customizing: null };
 const CART_KEY = 'club-cart-v1';
 const COMBO_RULES = {
   combo1: { burgers: 2, size: 'Doble', dips: 1 },
@@ -16,6 +16,91 @@ const DAY_LABELS = {
   lunes: 'lunes', martes: 'martes', miercoles: 'miércoles', jueves: 'jueves',
   viernes: 'viernes', sabado: 'sábado', domingo: 'domingo',
 };
+let promoTimer = null;
+
+function activePromoFor(productId) {
+  const now = Date.now() / 1000;
+  return state.promos
+    .filter((promo) => promo.product_id === productId && promo.starts_at <= now && promo.ends_at > now)
+    .sort((a, b) => b.discount_percent - a.discount_percent)[0] || null;
+}
+
+function promoClock(epoch) {
+  return new Date(epoch * 1000).toLocaleTimeString('es-AR', {
+    timeZone: 'America/Argentina/San_Juan', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+
+function countdown(endsAt) {
+  const left = Math.max(0, Math.floor(endsAt - Date.now() / 1000));
+  const hours = Math.floor(left / 3600);
+  const minutes = Math.floor((left % 3600) / 60);
+  const seconds = left % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
+function renderPromoBanner() {
+  const banner = document.querySelector('#promoBanner');
+  if (!banner) return;
+  const now = Date.now() / 1000;
+  const promos = state.promos
+    .filter((promo) => promo.starts_at <= now && promo.ends_at > now)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  if (!promos.length) {
+    banner.hidden = true;
+    banner.innerHTML = '';
+    return;
+  }
+  banner.hidden = false;
+  banner.innerHTML = `<div class="promo-banner-inner"><div class="promo-rail">${promos.map((promo) => {
+    const kicker = /^promo\b/i.test(promo.name) ? promo.name : `Promo ${promo.name}`;
+    return `
+    <article class="promo-card" data-promo-id="${esc(promo.id)}">
+      <div class="promo-card-copy">
+        <span class="promo-kicker">${esc(kicker)}</span>
+        <h2>${promo.discount_percent}% OFF en ${esc(promo.product_name)}</h2>
+        <p>Cargá las burgers del combo en el carrito y el descuento se aplica solo. Hasta las ${promoClock(promo.ends_at)}.</p>
+      </div>
+      <div class="promo-card-side">
+        <div class="promo-price"><strong>${money(promo.price)}</strong><s>${money(promo.base_price)}</s></div>
+        <div class="promo-timer"><span>Termina en</span><b data-promo-timer="${esc(promo.id)}">${countdown(promo.ends_at)}</b></div>
+        <a class="promo-cta" href="#carta">Armar mi combo</a>
+      </div>
+    </article>`; }).join('')}</div></div>`;
+}
+
+function pruneExpiredPromoLines() {
+  const active = new Set(state.promos.map((promo) => promo.id));
+  const expired = state.cart.filter((line) => line.promoId && !active.has(line.promoId));
+  if (!expired.length) return false;
+  state.cart = state.cart.filter((line) => !line.promoId || active.has(line.promoId));
+  saveCart();
+  toast('La promo venció: sacamos el combo del carrito.');
+  return true;
+}
+
+function updatePromoTimers() {
+  const now = Date.now() / 1000;
+  let changed = false;
+  document.querySelectorAll('[data-promo-timer]').forEach((node) => {
+    const promo = state.promos.find((item) => item.id === node.dataset.promoTimer);
+    if (!promo) return;
+    node.textContent = countdown(promo.ends_at);
+    if (promo.ends_at <= now) changed = true;
+  });
+  if (state.promos.some((promo) => promo.ends_at <= now)) {
+    state.promos = state.promos.filter((promo) => promo.ends_at > now);
+    pruneExpiredPromoLines();
+    renderPromoBanner();
+    changed = true;
+  }
+  if (changed) updateCartUI();
+}
+
+function startPromoTimer() {
+  if (promoTimer) return;
+  promoTimer = window.setInterval(updatePromoTimers, 1000);
+}
 
 function readCart() {
   try {
@@ -160,11 +245,14 @@ function dishCard(product, index) {
 }
 
 function comboCard(product, index) {
-  return `<article class="combo">
+  const promo = activePromoFor(product.id);
+  const price = promo ? promo.price : product.price;
+  return `<article class="combo${promo ? ' has-promo' : ''}">
     <div class="combo-head"><span>combo ${String(index + 1).padStart(2, '0')}</span><span>${esc((product.days || []).join(' / ') || 'fin de semana')}</span></div>
     <h3>${esc(product.name)}</h3>
     <p>${esc(product.description)}</p>
-    <div class="combo-price">${money(product.price)}</div>
+    ${promo ? `<div class="combo-offer">Promo ${esc(promo.name)} · ${promo.discount_percent}% OFF hasta las ${promoClock(promo.ends_at)}</div>` : ''}
+    <div class="combo-price">${money(price)}${promo ? `<s>${money(product.price)}</s>` : ''}</div>
     <button type="button" class="combo-link" data-add="${esc(product.id)}">Agregar al carrito ${arrow}</button>
   </article>`;
 }
@@ -279,10 +367,12 @@ function comboOptions() {
       if (dips.length < rule.dips) return;
       const units = comboUnits(rule);
       if (!units) return;
+      const promo = activePromoFor(combo.id);
+      const price = promo ? promo.price : combo.price;
       const baseTotal = units.reduce((sum, unit) => sum + unit.price, 0);
-      const savings = baseTotal - combo.price;
+      const savings = baseTotal - price;
       if (savings <= 0) return;
-      candidates.push({ combo, rule, units, baseTotal, savings, availableToday: comboAvailableToday(combo) });
+      candidates.push({ combo, rule, units, baseTotal, savings, price, promo, availableToday: comboAvailableToday(combo) });
     });
   return candidates.sort((a, b) => b.savings - a.savings);
 }
@@ -290,21 +380,23 @@ function comboOptions() {
 function comboSuggestionHTML() {
   const candidates = comboOptions();
   if (!candidates.length) return '';
-  const { combo, rule, baseTotal, savings, availableToday } = candidates[0];
+  const { combo, rule, baseTotal, savings, price, promo, availableToday } = candidates[0];
   const dips = state.products.filter((product) => product.kind === 'dip' && product.available && product.price != null);
   const selects = Array.from({ length: rule.dips }, (_, index) => `<label>Dip ${index + 1}<select data-combo-dip="${index}">${dips.map((dip, dipIndex) => `<option value="${esc(dip.name)}"${dipIndex === index ? ' selected' : ''}>${esc(dip.name)}</option>`).join('')}</select></label>`).join('');
   const dayLabels = (combo.days || []).map((day) => DAY_LABELS[day] || day);
   const days = dayLabels.length > 1
     ? `${dayLabels.slice(0, -1).join(', ')} y ${dayLabels[dayLabels.length - 1]}`
     : (dayLabels[0] || '');
-  const availability = availableToday
-    ? '<div class="combo-availability-row"><span class="combo-availability">Disponible hoy</span></div>'
-    : `<div class="combo-availability-row"><span class="combo-availability">Válido ${esc(days)}</span><span>Pedilo para uno de esos días.</span></div>`;
-  return `<div class="combo-suggest">
+  const availability = promo
+    ? `<div class="combo-availability-row"><span class="combo-availability">Promo ${esc(promo.name)} ${promo.discount_percent}% OFF</span><span>Hasta las ${promoClock(promo.ends_at)}.</span></div>`
+    : (availableToday
+      ? '<div class="combo-availability-row"><span class="combo-availability">Disponible hoy</span></div>'
+      : `<div class="combo-availability-row"><span class="combo-availability">Válido ${esc(days)}</span><span>Pedilo para uno de esos días.</span></div>`);
+  return `<div class="combo-suggest${promo ? ' has-promo' : ''}">
     <div class="combo-suggest-top"><span>Combo sugerido</span><b>Ahorrás ${money(savings)}</b></div>
     <h3>${esc(combo.name)}</h3>
     <p>${esc(combo.description)}</p>
-    <div class="combo-suggest-price"><strong>${money(combo.price)}</strong><span>vs. ${money(baseTotal)} en burgers</span></div>
+    <div class="combo-suggest-price"><strong>${money(price)}</strong><span>vs. ${money(baseTotal)} en burgers</span></div>
     ${availability}
     <div class="combo-dips">${selects}</div>
     <button type="button" class="combo-suggest-button" data-combo-suggest="${esc(combo.id)}">Cambiar por este combo</button>
@@ -334,9 +426,13 @@ function applyComboSuggestion(comboId) {
   addLine({
     key: `combo|${candidate.combo.id}|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`,
     kind: 'combo', id: candidate.combo.id, name: candidate.combo.name,
-    variantId: null, variantName: '', basePrice: candidate.combo.price, unit: candidate.combo.price,
-    qty: 1, extras: [], removals: [], total: candidate.combo.price,
+    variantId: null, variantName: '', basePrice: candidate.price, unit: candidate.price,
+    qty: 1, extras: [], removals: [], total: candidate.price,
     comboChoices: `${burgerChoices}. Dips: ${dips.join(', ')}`,
+    promoId: candidate.promo ? candidate.promo.id : null,
+    promoName: candidate.promo ? candidate.promo.name : '',
+    promoDiscount: candidate.promo ? candidate.promo.discount_percent : 0,
+    promoEndsAt: candidate.promo ? candidate.promo.ends_at : null,
   });
   toast(`${candidate.combo.name} agregado`);
 }
@@ -403,11 +499,15 @@ function addSimple(product) {
     });
     toast(`${name} agregado`);
   } else {
+    const promo = product.kind === 'combo' ? activePromoFor(product.id) : null;
+    const price = promo ? promo.price : product.price;
     addLine({
       key: `${product.kind}|${product.id}`,
       kind: product.kind, id: product.id, name: product.name,
-      variantId: null, variantName: '', basePrice: product.price, unit: product.price,
-      qty: 1, extras, removals: [], total: product.price,
+      variantId: null, variantName: '', basePrice: price, unit: price,
+      qty: 1, extras, removals: [], total: price,
+      promoId: promo ? promo.id : null, promoName: promo ? promo.name : '',
+      promoDiscount: promo ? promo.discount_percent : 0, promoEndsAt: promo ? promo.ends_at : null,
     });
     toast(`${product.name} agregado`);
   }
@@ -423,6 +523,7 @@ function cartLineHTML(line) {
         ${extras ? `<span class="cart-sub">${extras}</span>` : ''}
         ${removals ? `<span class="cart-sub">${removals}</span>` : ''}
         ${line.comboChoices ? `<span class="cart-sub combo-choices">${esc(line.comboChoices)}</span>` : ''}
+        ${line.promoName ? `<span class="cart-sub promo-line">Promo ${esc(line.promoName)} -${line.promoDiscount}% · hasta ${promoClock(line.promoEndsAt)}</span>` : ''}
       </div>
       <b>${money(line.total)}</b>
     </div>
@@ -680,6 +781,7 @@ async function loadMenu() {
     if (!response.ok) throw new Error('menu');
     const data = await response.json();
     state.products = data.products || [];
+    state.promos = data.promos || [];
     state.byId = new Map(state.products.map((p) => [p.id, p]));
     const burgers = state.products.filter((p) => p.kind === 'burger');
     const combos = state.products.filter((p) => p.kind === 'combo');
@@ -697,6 +799,9 @@ async function loadMenu() {
     if (business.phone) {
       document.querySelectorAll('.footer-phone').forEach((link) => { link.href = `https://wa.me/${business.phone}`; });
     }
+    pruneExpiredPromoLines();
+    renderPromoBanner();
+    startPromoTimer();
     updateCartUI();
   } catch (error) {
     grid.innerHTML = `<p class="loading">No pudimos cargar la carta. <a href="${wa('Hola! Me pasás la carta?')}">Pedila por WhatsApp</a>.</p>`;

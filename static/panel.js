@@ -30,6 +30,7 @@ let currentChat = null;
 let currentTab = 'orders';
 let menuItems = [];
 let insumos = [];
+let promoItems = [];
 const chatMeta = new Map();
 const MENU_CATEGORIES = ['Burgers', 'Combos (vie, sáb y dom)', 'Papas y extras', 'Dips', 'Bebidas', 'Otros'];
 const DAY_OPTIONS = [
@@ -41,6 +42,28 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function money(n) { return n == null ? '—' : '$' + Number(n).toLocaleString('es-AR'); }
+function promoLocalInput(epoch) {
+  return new Date((Number(epoch) - 3 * 3600) * 1000).toISOString().slice(0, 16);
+}
+function promoEpoch(value) {
+  if (!value) return null;
+  const [date, time] = value.split('T');
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day, hour + 3, minute) / 1000);
+}
+function promoDate(epoch) {
+  return new Date(epoch * 1000).toLocaleString('es-AR', {
+    timeZone: 'America/Argentina/San_Juan', day: '2-digit', month: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+function promoBasePrice(product) {
+  if (!product) return null;
+  if (product.price != null) return product.price;
+  const prices = (product.variants || []).map((variant) => variant.price).filter((price) => price != null);
+  return prices.length ? Math.min(...prices) : null;
+}
 function initials(value) {
   const clean = String(value || '').trim();
   if (!clean) return '?';
@@ -231,9 +254,13 @@ $('stockTable').addEventListener('click', async (e) => {
 });
 
 async function loadMenu() {
-  const [items, insumoRows] = await Promise.all([api('/admin/menu'), api('/admin/insumos')]);
+  const [items, insumoRows, promoRows] = await Promise.all([
+    api('/admin/menu'), api('/admin/insumos'), api('/admin/promos'),
+  ]);
   menuItems = items;
   insumos = insumoRows;
+  promoItems = promoRows;
+  renderPromoList();
   const noPrice = items.filter((p) => p.price == null && !p.variants.length).length;
   const paused = items.filter((p) => !p.available).length;
   const photos = items.filter((p) => p.image_url).length;
@@ -267,6 +294,85 @@ async function loadMenu() {
       </div>
     </article>`;
   }).join('');
+}
+
+function renderPromoList() {
+  const box = $('promoList');
+  if (!box) return;
+  if (!promoItems.length) {
+    box.innerHTML = '<p class="empty">Sin promociones. Creá una para mostrarla primera en la carta.</p>';
+    return;
+  }
+  const labels = { activa: 'Activa', programada: 'Programada', vencida: 'Vencida', pausada: 'Pausada' };
+  box.innerHTML = promoItems.map((promo) => {
+    const cls = promo.status === 'activa' ? 'ok' : promo.status === 'programada' ? 'warn' : promo.status === 'vencida' ? 'danger' : '';
+    return `<article class="promo-admin-card" data-id="${esc(promo.id)}">
+      <div class="promo-admin-head"><span class="tag ${cls}">${labels[promo.status] || esc(promo.status)}</span><time>Termina ${esc(promoDate(promo.ends_at))}</time></div>
+      <h4>${esc(promo.name)}</h4>
+      <p class="promo-admin-product">${esc(promo.product_name)} · ${promo.discount_percent}% OFF</p>
+      <div class="promo-admin-price">${money(promo.price)}<s>${money(promo.base_price)}</s></div>
+      <p class="promo-admin-window">${esc(promoDate(promo.starts_at))} → ${esc(promoDate(promo.ends_at))}</p>
+      <div class="menu-admin-actions">
+        <button class="btn btn-ghost btn-sm" data-promo-act="edit">Editar</button>
+        <button class="btn btn-ghost btn-sm btn-danger" data-promo-act="delete">Borrar</button>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function promoCombos() {
+  return menuItems.filter((product) => String(product.category || '').startsWith('Combos'));
+}
+
+function updatePromoPreview() {
+  const product = menuItems.find((item) => item.id === $('promoProduct').value);
+  const base = promoBasePrice(product);
+  const discount = Number($('promoDiscount').value || 0);
+  if (base == null) {
+    $('promoPreview').textContent = 'Elegí un combo con precio cargado.';
+    return;
+  }
+  const price = Math.max(0, Math.round(base * (100 - discount) / 100));
+  $('promoPreview').textContent = `Precio promo: ${money(price)} (antes ${money(base)})`;
+}
+
+function openPromoDialog(promo = null) {
+  $('promoForm').reset();
+  $('promoFormError').textContent = '';
+  $('promoId').value = promo ? promo.id : '';
+  $('promoDialogTitle').textContent = promo ? 'Editar promo' : 'Nueva promo';
+  $('promoName').value = promo ? promo.name : '';
+  const combos = promoCombos();
+  $('promoProduct').innerHTML = combos.length
+    ? combos.map((combo) => `<option value="${esc(combo.id)}"${promo && promo.product_id === combo.id ? ' selected' : ''}>${esc(combo.name)}</option>`).join('')
+    : '<option value="">Sin combos cargados</option>';
+  $('promoDiscount').value = promo ? promo.discount_percent : 15;
+  $('promoActive').checked = promo ? promo.active : true;
+  const now = Math.floor(Date.now() / 1000);
+  $('promoStart').value = promoLocalInput(promo ? promo.starts_at : now);
+  $('promoEnd').value = promoLocalInput(promo ? promo.ends_at : now + 3 * 3600);
+  $('promoDelete').hidden = !promo;
+  $('promoSave').textContent = promo ? 'Guardar cambios' : 'Crear promo';
+  updatePromoPreview();
+  $('promoDialog').showModal();
+  $('promoName').focus();
+}
+
+function closePromoDialog() {
+  $('promoDialog').close();
+}
+
+async function deletePromo(promoId) {
+  const promo = promoItems.find((item) => item.id === promoId);
+  if (!promo || !confirm(`¿Borrar la promo "${promo.name}"?`)) return;
+  try {
+    await api(`/admin/promos/${promoId}`, { method: 'DELETE' });
+    if ($('promoDialog').open) closePromoDialog();
+    await loadMenu();
+    await loadStatus();
+  } catch (err) {
+    alert('No se pudo borrar la promo: ' + err.message);
+  }
 }
 
 function categoryOptions(selected) {
@@ -386,6 +492,73 @@ $('productForm').addEventListener('submit', async (event) => {
     await loadStatus();
   } catch (err) {
     $('productFormError').textContent = 'No se pudo guardar: ' + err.message;
+  } finally {
+    save.disabled = false;
+  }
+});
+
+$('addPromo').addEventListener('click', () => openPromoDialog());
+$('promoProduct').addEventListener('change', updatePromoPreview);
+$('promoDiscount').addEventListener('input', updatePromoPreview);
+$('promoDelete').addEventListener('click', () => {
+  const promoId = $('promoId').value;
+  if (promoId) deletePromo(promoId);
+});
+document.querySelectorAll('[data-close-promo]').forEach((button) =>
+  button.addEventListener('click', closePromoDialog));
+$('promoDialog').addEventListener('click', (event) => {
+  if (event.target === $('promoDialog')) closePromoDialog();
+});
+
+$('promoList').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-promo-act]');
+  if (!button) return;
+  const card = button.closest('.promo-admin-card');
+  if (!card) return;
+  if (button.dataset.promoAct === 'edit') {
+    openPromoDialog(promoItems.find((promo) => promo.id === card.dataset.id));
+    return;
+  }
+  if (button.dataset.promoAct === 'delete') await deletePromo(card.dataset.id);
+});
+
+$('promoForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const promoId = $('promoId').value;
+  const name = $('promoName').value.trim();
+  const productId = $('promoProduct').value;
+  const discount = Number($('promoDiscount').value);
+  const startsAt = promoEpoch($('promoStart').value);
+  const endsAt = promoEpoch($('promoEnd').value);
+  if (!name) {
+    $('promoFormError').textContent = 'Poné un nombre para la promo.';
+    return;
+  }
+  if (!productId) {
+    $('promoFormError').textContent = 'Elegí un combo.';
+    return;
+  }
+  if (!startsAt || !endsAt || endsAt <= startsAt) {
+    $('promoFormError').textContent = 'La fecha de fin tiene que ser posterior al inicio.';
+    return;
+  }
+  const body = {
+    name, product_id: productId, discount_percent: discount,
+    starts_at: startsAt, ends_at: endsAt, active: $('promoActive').checked,
+  };
+  const save = $('promoSave');
+  save.disabled = true;
+  $('promoFormError').textContent = '';
+  try {
+    await api(promoId ? `/admin/promos/${promoId}` : '/admin/promos', {
+      method: promoId ? 'PATCH' : 'POST',
+      body: JSON.stringify(body),
+    });
+    closePromoDialog();
+    await loadMenu();
+    await loadStatus();
+  } catch (err) {
+    $('promoFormError').textContent = 'No se pudo guardar: ' + err.message;
   } finally {
     save.disabled = false;
   }

@@ -14,6 +14,7 @@ La carta, los horarios y las respuestas del cuestionario `docs/Cuestionario bot 
 - **Combos:** solo viernes, sábado y domingo. Se elige cualquier variedad menos Crispy Chicken y el dip (mayo de ajo, barbacoa o mostaza miel). No incluyen bebida.
 - **Ticket promedio:** al agregar una burger, el bot y el carrito ofrecen completar el combo con bebida y dip (o con los dips disponibles si todavía no hay bebidas con precio).
 - **Combo sugerido:** el carrito detecta 1 triple, 2 dobles o 4 o más dobles y muestra el combo que más ahorra, comparado contra las burgers que ya están cargadas. Al aceptar, reemplaza esas burgers por el combo y agrega los sabores y dips elegidos al mensaje de WhatsApp.
+- **Promos con vigencia:** cada promo tiene combo, descuento, inicio, fin y estado. Se muestra primera en `/carta` con cronómetro; al vencer desaparece y el bot deja de aplicarla. La promo activa también permite pedir el combo fuera de sus días normales.
 - **Delivery:** propio, hasta 10 km a la redonda. Costo por km; sin pedido mínimo y sin envío gratis. Demora habitual 15-20 min. Retiro en el salón, 10 min.
 - **Pagos:** efectivo y transferencia. Alias `Mathias1998`, titular `Mathias De Dios Juarez Fa.`. Los pedidos anticipados se abonan antes. Llevan cambio. No hacen factura; tarjeta tiene recargo.
 - **Cancelaciones:** el cliente puede cancelar sin costo dentro de los 10 minutos. Después pasa a una persona.
@@ -48,13 +49,17 @@ El bot manda este link cuando piden la carta (`carta`, `menú`, `precios`) y des
 - **Carrito:** elegís tamaño, extras con costo, ingredientes para sacar y cantidad. El carrito queda guardado en el navegador y el botón de WhatsApp manda el pedido armado en un formato que el bot entiende (`2 x Burger American Doble, sin cebolla`, `2 x Extra medallón`). El bot vuelve a calcular precios y stock; el total de la página es de referencia.
 - **Upsell:** debajo del carrito aparece **Sumá algo más** con bebidas, dips y extras disponibles. Se suma con un toque, sin volver a la carta. En la personalización de cada burger también aparecen bebidas y dips.
 - **Combo sugerido:** con las burgers cargadas, el carrito calcula el combo que más ahorra y muestra el precio, el ahorro y los selectores de dips. Al aceptar, el mensaje lleva las elecciones del combo separadas para que el bot no las tome como burgers extra.
+- **Promo primero:** si hay una promo activa, aparece arriba de todo antes del hero, con precio anterior, precio promo y cronómetro en vivo. Si hay varias, se ordenan por prioridad y se pueden deslizar.
+- **Promo en el carrito:** el combo sugerido toma el precio promo mientras esté vigente; si la promo vence, la línea de promo se quita del carrito y el bot ya no la aplica.
 
 ## Panel
 
 `https://<servicio>.onrender.com/panel` — entrar con `ADMIN_TOKEN`.
-Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (ledger por noche, inicial, usado, quedan, "Agotado", valor por defecto), **Carta** (alta, edición y baja de productos, precios simple/doble/triple, disponibilidad y **foto de cada producto** en tarjetas), **Chats** (bandeja con avatares, burbujas, responder, pausar/reactivar bot, marcar resuelto y **borrar el chat del panel**).
+Pestañas: **Pedidos** (tablero por estado, aviso sonoro, cargar costo de envío), **Stock** (ledger por noche, inicial, usado, quedan, "Agotado", valor por defecto), **Carta** (promos con vigencia, alta/edición/baja de productos, precios simple/doble/triple, disponibilidad y **foto de cada producto** en tarjetas), **Chats** (bandeja con avatares, burbujas, responder, pausar/reactivar bot, marcar resuelto y **borrar el chat del panel**).
 
 Los productos nuevos se crean con un precio único, categoría, días, receta de insumos y palabras clave. Los productos con variantes siguen editando simple/doble/triple desde la tarjeta. Las bajas quedan registradas y no se recrean al reiniciar el servicio.
+
+Las promos se crean desde **Carta → Promociones con contador**: nombre, combo, descuento, inicio, fin y activa/pausada. Todo se puede editar o borrar.
 
 ## Despliegue actual (20/11/2026)
 
@@ -97,7 +102,7 @@ py -3.14 -m venv .venv
 .venv\Scripts\python -m pytest -q
 ```
 
-Las 64 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, bebida con precio publicada como `drink`, respuesta de bebidas con precios, upsell de bebida + dip al agregar una burger, alta/edición/baja de productos desde el panel, baja permanente de productos sembrados entre reinicios, pedido con elecciones de combo sin burgers extra, varias elecciones de combo en orden, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser y pedido con extras, subida y borrado de fotos en la base, borrado de chats sin borrar el pedido, y ventana de 24 h.
+Las 68 pruebas cubren: ventana de pedidos (00:30, 00:50, 00:51, 09:59, 10:00, martes), combos solo fin de semana, combos para otro día, cambio de día con el carrito armado, variantes simple/doble/triple, productos sin precio, bebida con precio publicada como `drink`, respuesta de bebidas con precios, upsell de bebida + dip al agregar una burger, alta/edición/baja de productos desde el panel, baja permanente de productos sembrados entre reinicios, alta/edición/baja de promos, promo activa en carta pública, combo fuera de sus días con promo, promo vencida que no aplica, pedido con elecciones de combo sin burgers extra, varias elecciones de combo en orden, pedido completo por webhook firmado, stock que se agota a mitad del pedido, cancelación dentro y después de 10 minutos, pedido anticipado para otro día, pausa y reanudación por respuesta humana, envío a Zernio, carta pública, link de carta desde el bot, mensaje de carrito compatible con el parser y pedido con extras, subida y borrado de fotos en la base, borrado de chats sin borrar el pedido, y ventana de 24 h.
 
 El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`; después se edita desde el panel o `PUT /admin/content`. Si se cambia `content/negocio.json` o `content/carta.json`, hay que subir el marcador de versión o editar desde el panel, para no pisar cambios hechos por el local.
 
@@ -108,5 +113,6 @@ El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`;
 - El bot no lee comprobantes: marca "comprobante recibido" y lo verifica una persona.
 - Las bebidas están creadas en la carta pero sin precio: hasta cargarlas desde el panel, el bot consulta con una persona antes de venderlas y el carrito muestra solo dips/extras en el upsell.
 - El combo sugerido aparece siempre que haya burgers compatibles. Si el día actual no es día de combo, la tarjeta aclara los días válidos (viernes a domingo) para que el cliente lo pida para uno de esos días.
+- La promo se aplica a pedidos hechos dentro de su ventana de inicio/fin, aunque sean para otro día. Si la promo vence antes de confirmar el pedido, el bot ya no la aplica.
 - El cuestionario cargó **10 porciones de papas por noche**; cada burger descuenta 1. Si en realidad son 10 bolsas/kilos, ajustar el stock inicial desde el panel para que no se agote después de 10 burgers.
 - No hay plantilla de WhatsApp para reabrir conversaciones vencidas.

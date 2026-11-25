@@ -113,6 +113,16 @@
           </div>
           <span class="section-stamp">Fotos en Postgres</span>
         </div>
+        <div class="promo-admin">
+          <div class="section-bar promo-admin-bar">
+            <div>
+              <h3>Promociones con contador</h3>
+              <p class="section-note">Descuentos con fecha y hora. La promo activa sale primera en la carta pública y el bot la aplica automáticamente.</p>
+            </div>
+            <button class="btn btn-primary btn-sm" type="button" id="addPromo">+ Nueva promo</button>
+          </div>
+          <div class="promo-admin-grid" id="promoList"></div>
+        </div>
         <div class="section-bar menu-toolbar">
           <p class="section-note">Agregá, editá o borrá productos. Los cambios se publican al instante en la carta y en el bot.</p>
           <button class="btn btn-primary btn-sm" type="button" id="addProduct">+ Agregar producto</button>
@@ -216,6 +226,59 @@
       <button type="button" class="btn btn-ghost" data-close-product>Cancelar</button>
       <button type="button" class="btn btn-ghost btn-danger" id="productDelete" hidden>Borrar producto</button>
       <button type="submit" class="btn btn-primary" id="productSave">Guardar producto</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="promoDialog" class="product-dialog promo-dialog" aria-labelledby="promoDialogTitle">
+  <form id="promoForm" class="product-form">
+    <header class="product-form-head">
+      <div>
+        <span class="form-kicker">Carta</span>
+        <h2 id="promoDialogTitle">Nueva promo</h2>
+      </div>
+      <button type="button" class="product-dialog-close" data-close-promo aria-label="Cerrar">×</button>
+    </header>
+    <div class="product-form-body">
+      <input id="promoId" type="hidden">
+      <div class="form-grid">
+        <label class="field">
+          <span>Nombre</span>
+          <input id="promoName" maxlength="120" required placeholder="Ej: Prueba">
+        </label>
+        <label class="field">
+          <span>Combo</span>
+          <select id="promoProduct"></select>
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Descuento (%)</span>
+          <input id="promoDiscount" type="number" min="0" max="100" step="1" required>
+        </label>
+        <label class="product-check">
+          <input id="promoActive" type="checkbox" checked>
+          <span>Promo activa</span>
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Empieza</span>
+          <input id="promoStart" type="datetime-local" required>
+        </label>
+        <label class="field">
+          <span>Termina</span>
+          <input id="promoEnd" type="datetime-local" required>
+        </label>
+      </div>
+      <p class="promo-preview" id="promoPreview"></p>
+      <p class="form-note">El cronómetro se calcula con la hora de San Juan. Al vencer, la promo deja de mostrarse y el bot no la aplica.</p>
+      <p class="form-note form-error" id="promoFormError" role="alert"></p>
+    </div>
+    <footer class="product-form-actions">
+      <button type="button" class="btn btn-ghost" data-close-promo>Cancelar</button>
+      <button type="button" class="btn btn-ghost btn-danger" id="promoDelete" hidden>Borrar promo</button>
+      <button type="submit" class="btn btn-primary" id="promoSave">Guardar promo</button>
     </footer>
   </form>
 </dialog>

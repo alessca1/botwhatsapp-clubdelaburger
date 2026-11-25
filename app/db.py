@@ -1,7 +1,9 @@
 import json
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from cryptography.fernet import Fernet
 from sqlalchemy import (create_engine, String, Text, LargeBinary, Float, Integer, Boolean,
                         UniqueConstraint)
@@ -105,6 +107,21 @@ class ProductImage(Base):
     product_id: Mapped[str] = mapped_column(String(40), primary_key=True)
     content_type: Mapped[str] = mapped_column(String(40))
     data: Mapped[bytes] = mapped_column(LargeBinary)
+    updated: Mapped[float] = mapped_column(Float, default=time.time)
+
+
+class Promo(Base):
+    """Time-limited discount on one product. The product must be a combo."""
+    __tablename__ = 'promos'
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    product_id: Mapped[str] = mapped_column(String(40), index=True)
+    discount_percent: Mapped[int] = mapped_column(Integer, default=0)
+    starts_at: Mapped[float] = mapped_column(Float)
+    ends_at: Mapped[float] = mapped_column(Float)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[float] = mapped_column(Float, default=time.time)
     updated: Mapped[float] = mapped_column(Float, default=time.time)
 
 
@@ -238,6 +255,17 @@ class Database:
                     row.default_daily = i.get('stock_diario')
             if not seed:
                 s.add(Content(id='seed:2026-11-20-carta-v1', body=json.dumps({'seeded_at': time.time()})))
+            promo_seed = s.get(Content, 'seed:2026-11-25-promo-prueba')
+            if not promo_seed:
+                now = time.time()
+                local = datetime.fromtimestamp(now, ZoneInfo('America/Argentina/San_Juan'))
+                end = local.replace(hour=15, minute=0, second=0, microsecond=0)
+                if now < end.timestamp() and not s.get(Promo, 'prueba'):
+                    s.add(Promo(id='prueba', name='Prueba', product_id='combo3',
+                                discount_percent=15, starts_at=now, ends_at=end.timestamp(),
+                                active=True, position=0))
+                s.add(Content(id='seed:2026-11-25-promo-prueba',
+                              body=json.dumps({'seeded_at': now})))
             # A stopped process may have sent these messages; never replay blindly.
             for row in s.query(Outbox).filter_by(status='sending'):
                 row.status = 'uncertain'

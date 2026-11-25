@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from app.config import Settings
 from app.db import (Database, Conversation, Content, Event, Outbox, Message, Order, Product,
-                    ProductVariant, ProductImage, Insumo, DailyStock, Audit)
+                    ProductVariant, ProductImage, Insumo, DailyStock, Audit, Promo)
 from app.hours import DAYS, Schedule
 from app.menu import load_items, money, normalized, product_kind
 from app.service import Bot
@@ -126,6 +126,37 @@ def create_app(settings=None, run_worker=True, llm=None):
             raise HTTPException(404)
         return FileResponse(STATIC / name)
 
+    def _base_price(item):
+        if item.price is not None:
+            return item.price
+        prices = [v.price for v in item.variants if v.price is not None]
+        return min(prices) if prices else None
+
+    def _promo_price(base, discount):
+        return max(0, int(round(base * (100 - int(discount)) / 100)))
+
+    def _promo_status(promo, now):
+        if not promo.active:
+            return 'pausada'
+        if now < promo.starts_at:
+            return 'programada'
+        if now >= promo.ends_at:
+            return 'vencida'
+        return 'activa'
+
+    def _promo_payload(promo, item, now):
+        base = _base_price(item)
+        if base is None:
+            return None
+        return {
+            'id': promo.id, 'name': promo.name, 'product_id': promo.product_id,
+            'product_name': item.name, 'product_kind': product_kind(item.category),
+            'discount_percent': promo.discount_percent, 'starts_at': promo.starts_at,
+            'ends_at': promo.ends_at, 'active': promo.active, 'position': promo.position,
+            'status': _promo_status(promo, now), 'base_price': base,
+            'price': _promo_price(base, promo.discount_percent),
+        }
+
     @app.get('/public/menu')
     def public_menu():
         with db.session() as s:
@@ -146,6 +177,18 @@ def create_app(settings=None, run_worker=True, llm=None):
                     'image_url': (f'/menu/image/{item.id}?v={int(images[item.id])}'
                                   if item.id in images else None),
                 })
+            now = time.time()
+            by_id = {item.id: item for item in items}
+            promos = []
+            for promo in s.scalars(select(Promo).where(
+                    Promo.active == True, Promo.starts_at <= now, Promo.ends_at > now)
+                    .order_by(Promo.position, Promo.created.desc())):
+                item = by_id.get(promo.product_id)
+                if not item or not item.available or item.kind != 'combo':
+                    continue
+                payload = _promo_payload(promo, item, now)
+                if payload:
+                    promos.append(payload)
             return {
                 'business': {
                     'name': negocio.get('business_name'), 'address': negocio.get('address'),
@@ -160,6 +203,7 @@ def create_app(settings=None, run_worker=True, llm=None):
                     'transfer_alias': negocio.get('transfer_alias'),
                 },
                 'products': products,
+                'promos': promos,
             }
 
     @app.get('/menu/image/{product_id}')
@@ -457,6 +501,7 @@ def create_app(settings=None, run_worker=True, llm=None):
             if not p:
                 raise HTTPException(404, 'Producto inexistente')
             s.query(ProductVariant).filter(ProductVariant.product_id == product_id).delete(synchronize_session=False)
+            s.query(Promo).filter(Promo.product_id == product_id).delete(synchronize_session=False)
             image = s.get(ProductImage, product_id)
             if image:
                 s.delete(image)
@@ -470,6 +515,106 @@ def create_app(settings=None, run_worker=True, llm=None):
         with db.session() as s:
             return [{'id': i.id, 'name': i.name, 'unit': i.unit, 'default_daily': i.default_daily}
                     for i in s.scalars(select(Insumo).order_by(Insumo.name))]
+
+    def _promo_product(s, product_id):
+        product = s.get(Product, product_id)
+        if not product or product_kind(product.category) != 'combo':
+            raise HTTPException(400, 'La promoción debe ser sobre un combo')
+        return product
+
+    def _promo_window(starts_at, ends_at):
+        if not starts_at or not ends_at or ends_at <= starts_at:
+            raise HTTPException(400, 'La fecha de fin debe ser posterior al inicio')
+
+    class PromoCreateBody(BaseModel):
+        name: str = Field(min_length=1, max_length=120)
+        product_id: str = Field(min_length=1, max_length=40)
+        discount_percent: int = Field(ge=0, le=100)
+        starts_at: float
+        ends_at: float
+        active: bool = True
+
+    class PromoUpdateBody(BaseModel):
+        name: str | None = Field(default=None, max_length=120)
+        product_id: str | None = Field(default=None, max_length=40)
+        discount_percent: int | None = Field(default=None, ge=0, le=100)
+        starts_at: float | None = None
+        ends_at: float | None = None
+        active: bool | None = None
+
+    @app.get('/admin/promos', dependencies=[Depends(admin)])
+    def promos():
+        now = time.time()
+        with db.session() as s:
+            out = []
+            for promo in s.scalars(select(Promo).order_by(Promo.position, Promo.created.desc())):
+                item = s.get(Product, promo.product_id)
+                if not item:
+                    continue
+                payload = _promo_payload(promo, item, now)
+                if payload:
+                    out.append(payload)
+            return out
+
+    @app.post('/admin/promos', dependencies=[Depends(admin)])
+    def create_promo(body: PromoCreateBody):
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(400, 'El nombre es obligatorio')
+        _promo_window(body.starts_at, body.ends_at)
+        with db.session() as s:
+            _promo_product(s, body.product_id)
+            base = _product_slug(name)
+            promo_id, suffix = base, 2
+            while s.get(Promo, promo_id):
+                promo_id = f'{base}-{suffix}'
+                suffix += 1
+            position = min((p.position for p in s.scalars(select(Promo))), default=0) - 1
+            s.add(Promo(id=promo_id, name=name, product_id=body.product_id,
+                        discount_percent=body.discount_percent, starts_at=body.starts_at,
+                        ends_at=body.ends_at, active=body.active, position=position))
+            s.add(Audit(action='promo_created', target=promo_id))
+            s.commit()
+        return {'saved': True, 'id': promo_id}
+
+    @app.patch('/admin/promos/{promo_id}', dependencies=[Depends(admin)])
+    def update_promo(promo_id: str, body: PromoUpdateBody):
+        with db.session() as s:
+            promo = s.get(Promo, promo_id)
+            if not promo:
+                raise HTTPException(404, 'Promoción inexistente')
+            if body.name is not None:
+                name = body.name.strip()
+                if not name:
+                    raise HTTPException(400, 'El nombre es obligatorio')
+                promo.name = name
+            if body.product_id is not None:
+                _promo_product(s, body.product_id)
+                promo.product_id = body.product_id
+            if body.discount_percent is not None:
+                promo.discount_percent = body.discount_percent
+            if body.starts_at is not None:
+                promo.starts_at = body.starts_at
+            if body.ends_at is not None:
+                promo.ends_at = body.ends_at
+            if body.active is not None:
+                promo.active = body.active
+            _promo_window(promo.starts_at, promo.ends_at)
+            promo.updated = time.time()
+            s.add(Audit(action='promo_updated', target=promo_id))
+            s.commit()
+        return {'saved': True}
+
+    @app.delete('/admin/promos/{promo_id}', dependencies=[Depends(admin)])
+    def delete_promo(promo_id: str):
+        with db.session() as s:
+            promo = s.get(Promo, promo_id)
+            if not promo:
+                raise HTTPException(404, 'Promoción inexistente')
+            s.delete(promo)
+            s.add(Audit(action='promo_deleted', target=promo_id))
+            s.commit()
+        return {'deleted': True}
 
     @app.post('/admin/menu/{product_id}/image', dependencies=[Depends(admin)])
     async def upload_menu_image(product_id: str, file: UploadFile = File(...)):

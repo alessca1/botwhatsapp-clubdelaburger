@@ -218,13 +218,13 @@ def parse_items(text, items):
     return result
 
 
-def cart_text(cart, items_by_id):
+def cart_text(cart, items_by_id, price_for=None):
     lines, total = [], 0
     for line in cart:
         item = items_by_id.get(line['id'])
         if not item:
             continue
-        price = item.price_for(line.get('variant_id'))
+        price = price_for(item, line.get('variant_id')) if price_for else item.price_for(line.get('variant_id'))
         if price is None:
             continue
         subtotal = price * line['qty']

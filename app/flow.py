@@ -38,13 +38,14 @@ RE_DAY_WORDS = re.compile(r'\b(para|el|del|este|proximo|hoy|manana|pasado|lunes|
 
 
 class Flow:
-    def __init__(self, s, db, negocio, items, now_ts, llm=None):
+    def __init__(self, s, db, negocio, items, now_ts, llm=None, promos=None):
         self.s, self.db, self.negocio, self.items = s, db, negocio, items
         self.by_id = {i.id: i for i in items}
         self.schedule = Schedule(negocio)
         self.now_ts = now_ts
         self.now = self.schedule.local(now_ts)
         self.llm = llm
+        self.promos = promos or []
         self.replies = []
         self.flags = set()  # needs_human
 
@@ -72,6 +73,24 @@ class Flow:
 
     def _stock(self, service_date):
         return stockmod.remaining(self.s, service_date.isoformat())
+
+    def _promo_for(self, item_id):
+        matches = [promo for promo in self.promos if promo.product_id == item_id]
+        if not matches:
+            return None
+        return max(matches, key=lambda promo: (promo.discount_percent, promo.ends_at))
+
+    def _price_for(self, item, variant_id=None):
+        base = item.price_for(variant_id)
+        promo = self._promo_for(item.id)
+        if promo and base is not None:
+            return max(0, int(round(base * (100 - promo.discount_percent) / 100)))
+        return base
+
+    def _allowed(self, item, variant_id, service_date):
+        if self._promo_for(item.id):
+            return item.available and item.price_for(variant_id) is not None
+        return item.orderable(service_date, variant_id)
 
     def _day_text(self, d):
         if d == self.now.date():
@@ -421,14 +440,14 @@ class Flow:
         keep = []
         for line in ctx.get('cart') or []:
             item = self.by_id.get(line['id'])
-            if item and item.orderable(None, line.get('variant_id')) and item.sells_on(sd):
+            if item and self._allowed(item, line.get('variant_id'), sd):
                 keep.append(line)
             elif item:
                 self.say(f'Quité {item.label_for(line.get("variant_id"))} porque no se vende el '
                          f'{self.schedule.day_label(sd)}.')
         ctx['cart'] = keep
         if keep:
-            lines, total = cart_text(keep, self.by_id)
+            lines, total = cart_text(keep, self.by_id, price_for=self._price_for)
             self.say(f'🛒 *Tu pedido:*\n{lines}\n*Subtotal: {money(total)}*')
 
     def _add(self, ctx, pairs):
@@ -436,10 +455,11 @@ class Flow:
         left = self._stock(sd)
         problems = []
         for item, qty, note, variant_id in pairs:
-            if not item.orderable(None, variant_id):
+            promo = self._promo_for(item.id)
+            if not item.available or item.price_for(variant_id) is None:
                 problems.append(f'La {item.label_for(variant_id)} no está disponible para pedir por acá en este momento.')
                 continue
-            if not item.sells_on(sd):
+            if not promo and not item.sells_on(sd):
                 problems.append(f'El {item.name} es válido solo {", ".join(item.days)} 😉')
                 continue
             line = {'id': item.id, 'qty': qty, 'note': note, 'variant_id': variant_id}
@@ -466,7 +486,7 @@ class Flow:
         for p in problems:
             self.say(p)
         if ctx['cart']:
-            lines, total = cart_text(ctx['cart'], self.by_id)
+            lines, total = cart_text(ctx['cart'], self.by_id, price_for=self._price_for)
             self.say(f'🛒 *Tu pedido:*\n{lines}\n*Subtotal: {money(total)}*\n\n¿Querés agregar algo más?',
                      [{'title': 'Listo, seguir', 'payload': 'cart_done'},
                       {'title': 'Agregar más', 'payload': 'cart_more'},
@@ -545,7 +565,7 @@ class Flow:
         self.say('¿Cómo vas a pagar?', [{'title': m[:20], 'payload': f'pay_{n}'} for n, m in enumerate(methods[:3])])
 
     def _summary(self, ctx):
-        lines, total = cart_text(ctx['cart'], self.by_id)
+        lines, total = cart_text(ctx['cart'], self.by_id, price_for=self._price_for)
         sd = self._service_date(ctx)
         mode = ('🛵 Delivery a: ' + ctx.get('address', '')) if ctx.get('mode') == 'delivery' else '🥡 Retiro en el local'
         slot = 'lo antes posible' if ctx.get('slot') == 'ASAP' else f"a las {ctx.get('slot')}"
@@ -721,7 +741,7 @@ class Flow:
             return self.say('😔 No pude confirmar el pedido: se cerró la toma de pedidos para ese día.')
         for line in ctx['cart']:
             item = self.by_id.get(line['id'])
-            if not item or not item.orderable(None, line.get('variant_id')):
+            if not item or not self._allowed(item, line.get('variant_id'), sd):
                 self._reset(ctx)
                 return self.say('😔 Uno de los productos dejó de estar disponible. Armemos el pedido de nuevo, escribí *pedir*.')
         if ctx['slot'] != 'ASAP' and ctx['slot'] not in self._free_slots(sd, ctx['mode']):
@@ -746,20 +766,28 @@ class Flow:
             ctx['step'] = 'cart'
             self.say('😔 Justo se nos agotó: ' + ', '.join(gone) + '. Lo saqué del pedido.')
             if keep:
-                lines, total = cart_text(keep, self.by_id)
+                lines, total = cart_text(keep, self.by_id, price_for=self._price_for)
                 self.say(f'🛒 Queda así:\n{lines}\n*Subtotal: {money(total)}*\n¿Querés agregar otra cosa o seguimos?',
                          [{'title': 'Listo, seguir', 'payload': 'cart_done'},
                           {'title': 'Cancelar', 'payload': 'cancelar'}])
             else:
                 self.say('¿Querés elegir otra cosa? Escribí *carta* para ver lo disponible.')
             return
-        _, total = cart_text(ctx['cart'], self.by_id)
+        _, total = cart_text(ctx['cart'], self.by_id, price_for=self._price_for)
         fee = self.negocio.get('delivery_fee') if ctx['mode'] == 'delivery' else None
         number = (self.s.scalar(select(func.max(Order.number)).where(Order.service_date == sd.isoformat())) or 0) + 1
-        items = [{'id': l['id'], 'name': self.by_id[l['id']].label_for(l.get('variant_id')),
-                  'qty': l['qty'], 'note': l.get('note', ''),
-                  'price': self.by_id[l['id']].price_for(l.get('variant_id')),
-                  'variant_id': l.get('variant_id')} for l in ctx['cart']]
+        items = []
+        for line in ctx['cart']:
+            item = self.by_id[line['id']]
+            note = line.get('note', '')
+            promo = self._promo_for(item.id)
+            if promo:
+                promo_note = f'Promo {promo.name} -{promo.discount_percent}%'
+                note = f'{promo_note}; {note}' if note else promo_note
+            items.append({'id': line['id'], 'name': item.label_for(line.get('variant_id')),
+                          'qty': line['qty'], 'note': note,
+                          'price': self._price_for(item, line.get('variant_id')),
+                          'variant_id': line.get('variant_id')})
         order = Order(number=number, conversation_id=ctx['conversation_id'], service_date=sd.isoformat(),
                       status='nuevo', slot=ctx['slot'], mode=ctx['mode'], payment=ctx['payment'],
                       total=total + (fee or 0), delivery_fee=fee,

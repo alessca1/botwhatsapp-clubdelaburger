@@ -542,6 +542,72 @@ def test_admin_lists_insumos_for_recipe_editor(app):
     assert any(i['id'] == 'medallon' and i['name'] for i in rows)
 
 
+def test_admin_creates_promo_and_public_menu_exposes_it(app):
+    import time as _t
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    now = _t.time()
+    r = app.state.client.post('/admin/promos', json={
+        'name': 'Promo Test', 'product_id': 'combo3', 'discount_percent': 15,
+        'starts_at': now - 60, 'ends_at': now + 3600, 'active': True,
+    }, headers=h)
+    assert r.status_code == 200, r.text
+    promo_id = r.json()['id']
+    admin = app.state.client.get('/admin/promos', headers=h).json()
+    promo = next(p for p in admin if p['id'] == promo_id)
+    assert promo['status'] == 'activa' and promo['price'] == 31450
+    public = app.state.client.get('/public/menu').json()['promos']
+    current = next(p for p in public if p['id'] == promo_id)
+    assert current['product_id'] == 'combo3' and current['price'] == 31450
+    assert current['discount_percent'] == 15
+
+
+def test_admin_edits_and_deletes_promo(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    promo_id = app.state.client.post('/admin/promos', json={
+        'name': 'Promo editable', 'product_id': 'combo3', 'discount_percent': 10,
+        'starts_at': WED_21 - 60, 'ends_at': WED_21 + 3600, 'active': True,
+    }, headers=h).json()['id']
+    r = app.state.client.patch(f'/admin/promos/{promo_id}', json={
+        'name': 'Promo editada', 'discount_percent': 20, 'active': False,
+    }, headers=h)
+    assert r.status_code == 200, r.text
+    promo = next(p for p in app.state.client.get('/admin/promos', headers=h).json() if p['id'] == promo_id)
+    assert promo['name'] == 'Promo editada' and promo['discount_percent'] == 20 and promo['status'] == 'pausada'
+    assert app.state.client.delete(f'/admin/promos/{promo_id}', headers=h).status_code == 200
+    assert all(p['id'] != promo_id for p in app.state.client.get('/admin/promos', headers=h).json())
+
+
+def test_promo_allows_combo_outside_weekend_with_discount(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    promo_id = app.state.client.post('/admin/promos', json={
+        'name': 'Promo miércoles', 'product_id': 'combo3', 'discount_percent': 15,
+        'starts_at': WED_21 - 60, 'ends_at': WED_21 + 3600, 'active': True,
+    }, headers=h).json()['id']
+    out = send(app, '1 combo 3', WED_21)
+    assert 'Combo 3 Amistad' in out and '$31.450' in out
+    for step in ['listo', 'retiro', 'Juan', '1', 'efectivo', 'si']:
+        out = send(app, step, WED_21)
+    assert 'Pedido *#1* recibido' in out
+    with app.state.db.session() as s:
+        order = s.scalar(select(Order))
+        assert order.total == 31450
+        saved = app.state.db.unpack(order.data)['items']
+        assert saved[0]['price'] == 31450
+        assert 'Promo miércoles' in saved[0]['note'] and '15%' in saved[0]['note']
+
+
+def test_expired_promo_does_not_allow_combo(app):
+    h = {'Authorization': 'Bearer ' + ADMIN}
+    app.state.client.post('/admin/promos', json={
+        'name': 'Promo vencida', 'product_id': 'combo3', 'discount_percent': 15,
+        'starts_at': WED_21 - 7200, 'ends_at': WED_21 - 60, 'active': True,
+    }, headers=h)
+    out = send(app, '1 combo 3', WED_21)
+    assert 'solo viernes' in out
+    with app.state.db.session() as s:
+        assert s.query(Order).count() == 0
+
+
 def test_closed_tuesday(app):
     out = send(app, '2 american', TUE_15)
     assert 'Hoy martes no abrimos' in out
@@ -664,6 +730,11 @@ def test_order_keeps_ledger_when_chat_is_deleted(app):
 def test_panel_requires_token(app):
     assert app.state.client.get('/admin/orders').status_code == 401
     assert app.state.client.get('/admin/insumos').status_code == 401
+    assert app.state.client.get('/admin/promos').status_code == 401
+    assert app.state.client.post('/admin/promos', json={
+        'name': 'X', 'product_id': 'combo3', 'discount_percent': 10,
+        'starts_at': 1, 'ends_at': 2,
+    }).status_code == 401
     assert app.state.client.post('/admin/menu', json={'name': 'X', 'category': 'Bebidas'}).status_code == 401
     assert app.state.client.delete('/admin/menu/american').status_code == 401
     assert app.state.client.get('/panel').status_code == 200

@@ -18,6 +18,7 @@ Que puedan ver la carta completa, entender los tamaños y precios, y abrir Whats
 - Precios directos por WhatsApp, no los de PedidosYa.
 - Combos solo viernes, sábado y domingo; no incluyen bebida.
 - El carrito sugiere el combo que más ahorra según las burgers cargadas, con el ahorro calculado contra esas burgers.
+- Las promos tienen combo, descuento, fecha de inicio y fin. Se muestran primeras en `/carta` con cronómetro y el bot las aplica mientras estén vigentes.
 - Bebidas cargadas en la carta, con precio a completar desde el panel.
 - Delivery propio hasta 10 km, a cotizar por km. Retiro en el salón.
 - Efectivo o transferencia. Alias Mathias1998.
@@ -45,6 +46,7 @@ Papel crema, tinta negra, tomate, cheddar y oliva. Fraunces para la voz grande; 
 - Los precios y la disponibilidad salen de la base, nunca hardcodeados.
 - El panel permite crear, editar y borrar productos; los cambios se publican al instante.
 - El combo sugerido reemplaza las burgers por el combo y manda las elecciones en una línea separada que el bot no interpreta como productos.
+- La promo se administra desde Carta; al vencer desaparece de la carta y deja de aplicarse en el bot.
 - El upsell de bebida + dip se activa solo cuando la bebida tiene precio.
 - La página pública se sirve en `/carta`; la API en `/public/menu`.
 - Las fotos se guardan en Postgres y se sirven en `/menu/image/{producto}`.
