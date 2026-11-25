@@ -634,6 +634,8 @@ dialog::backdrop { background: var(--scrim); backdrop-filter: blur(3px); }
 .combo-suggest-price { display: flex; align-items: baseline; gap: 9px; margin-top: 12px; }
 .combo-suggest-price strong { font-family: var(--display); font-size: 28px; font-weight: 900; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .combo-suggest-price span { color: var(--ink-soft); font-size: 10px; }
+.combo-availability-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px; margin-top: 8px; color: var(--ink-soft); font-size: 9px; }
+.combo-availability { padding: 3px 6px; background: rgba(24, 19, 16, 0.12); color: var(--ink); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .combo-dips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .combo-dips label { display: grid; gap: 4px; color: var(--ink-soft); font-size: 9px; font-weight: 600; }
 .combo-dips select { width: 100%; min-height: 36px; padding: 6px 7px; border-color: var(--ink); background: var(--paper-light); color: var(--ink); font-size: 11px; }

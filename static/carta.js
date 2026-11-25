@@ -271,14 +271,14 @@ function comboOptions() {
     .filter((product) => product.kind === 'combo' && product.available && product.price != null)
     .forEach((combo) => {
       const rule = COMBO_RULES[combo.id];
-      if (!rule || !comboAvailableToday(combo)) return;
+      if (!rule) return;
       if (dips.length < rule.dips) return;
       const units = comboUnits(rule);
       if (!units) return;
       const baseTotal = units.reduce((sum, unit) => sum + unit.price, 0);
       const savings = baseTotal - combo.price;
       if (savings <= 0) return;
-      candidates.push({ combo, rule, units, baseTotal, savings });
+      candidates.push({ combo, rule, units, baseTotal, savings, availableToday: comboAvailableToday(combo) });
     });
   return candidates.sort((a, b) => b.savings - a.savings);
 }
@@ -286,14 +286,19 @@ function comboOptions() {
 function comboSuggestionHTML() {
   const candidates = comboOptions();
   if (!candidates.length) return '';
-  const { combo, rule, baseTotal, savings } = candidates[0];
+  const { combo, rule, baseTotal, savings, availableToday } = candidates[0];
   const dips = state.products.filter((product) => product.kind === 'dip' && product.available && product.price != null);
   const selects = Array.from({ length: rule.dips }, (_, index) => `<label>Dip ${index + 1}<select data-combo-dip="${index}">${dips.map((dip, dipIndex) => `<option value="${esc(dip.name)}"${dipIndex === index ? ' selected' : ''}>${esc(dip.name)}</option>`).join('')}</select></label>`).join('');
+  const days = (combo.days || []).join(', ');
+  const availability = availableToday
+    ? '<div class="combo-availability-row"><span class="combo-availability">Disponible hoy</span></div>'
+    : `<div class="combo-availability-row"><span class="combo-availability">Válido ${esc(days)}</span><span>Pedilo para uno de esos días.</span></div>`;
   return `<div class="combo-suggest">
     <div class="combo-suggest-top"><span>Combo sugerido</span><b>Ahorrás ${money(savings)}</b></div>
     <h3>${esc(combo.name)}</h3>
     <p>${esc(combo.description)}</p>
     <div class="combo-suggest-price"><strong>${money(combo.price)}</strong><span>vs. ${money(baseTotal)} en burgers</span></div>
+    ${availability}
     <div class="combo-dips">${selects}</div>
     <button type="button" class="combo-suggest-button" data-combo-suggest="${esc(combo.id)}">Cambiar por este combo</button>
   </div>`;

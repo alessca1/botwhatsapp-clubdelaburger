@@ -107,6 +107,6 @@ El contenido se importa una sola vez con el marcador `seed:2026-11-20-carta-v1`;
 - Los pedidos de PedidosYa y del salón no pasan por el bot: si comparten stock hay que descontarlos en el panel.
 - El bot no lee comprobantes: marca "comprobante recibido" y lo verifica una persona.
 - Las bebidas están creadas en la carta pero sin precio: hasta cargarlas desde el panel, el bot consulta con una persona antes de venderlas y el carrito muestra solo dips/extras en el upsell.
-- El combo sugerido usa el día actual de San Juan y aparece solo los días en que el combo está habilitado (hoy, viernes a domingo). Para pedidos anticipados de otro día, el cliente puede agregar el combo desde la sección Combos.
+- El combo sugerido aparece siempre que haya burgers compatibles. Si el día actual no es día de combo, la tarjeta aclara los días válidos (viernes a domingo) para que el cliente lo pida para uno de esos días.
 - El cuestionario cargó **10 porciones de papas por noche**; cada burger descuenta 1. Si en realidad son 10 bolsas/kilos, ajustar el stock inicial desde el panel para que no se agote después de 10 burgers.
 - No hay plantilla de WhatsApp para reabrir conversaciones vencidas.
