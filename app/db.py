@@ -5,8 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from cryptography.fernet import Fernet
-from sqlalchemy import (create_engine, String, Text, LargeBinary, Float, Integer, Boolean,
-                        UniqueConstraint)
+from sqlalchemy import (create_engine, inspect, text as sql_text, String, Text, LargeBinary,
+                        Float, Integer, Boolean, UniqueConstraint)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -157,6 +157,14 @@ class Order(Base):
     slot: Mapped[str] = mapped_column(String(20), default='')
     mode: Mapped[str] = mapped_column(String(12))
     payment: Mapped[str] = mapped_column(String(30), default='')
+    # pendiente | pagado | a_cobrar | rechazado | reembolsado | revision
+    payment_status: Mapped[str] = mapped_column(String(24), default='pendiente', index=True)
+    # mercadopago | transferencia | efectivo | manual
+    payment_provider: Mapped[str] = mapped_column(String(24), default='')
+    payment_id: Mapped[str] = mapped_column(String(64), default='', index=True)
+    payment_preference_id: Mapped[str] = mapped_column(String(64), default='')
+    payment_url: Mapped[str] = mapped_column(Text, default='')
+    paid_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     total: Mapped[int] = mapped_column(Integer, default=0)
     delivery_fee: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Encrypted JSON: name, phone, address, items, notes.
@@ -203,8 +211,35 @@ class Database:
     def unpack(self, value):
         return json.loads(self.cipher.decrypt(value))
 
+    def _migrate(self):
+        """Add payment columns to databases created before the Mercado Pago integration."""
+        inspector = inspect(self.engine)
+        if 'orders' not in inspector.get_table_names():
+            return
+        existing = {column['name'] for column in inspector.get_columns('orders')}
+        paid_at_type = 'DOUBLE PRECISION' if self.engine.dialect.name == 'postgresql' else 'FLOAT'
+        columns = {
+            'payment_status': "VARCHAR(24) NOT NULL DEFAULT 'pendiente'",
+            'payment_provider': "VARCHAR(24) NOT NULL DEFAULT ''",
+            'payment_id': "VARCHAR(64) NOT NULL DEFAULT ''",
+            'payment_preference_id': "VARCHAR(64) NOT NULL DEFAULT ''",
+            'payment_url': "TEXT NOT NULL DEFAULT ''",
+            'paid_at': paid_at_type,
+        }
+        with self.engine.begin() as conn:
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(sql_text(f'ALTER TABLE orders ADD COLUMN {name} {ddl}'))
+            # Orders from before this integration: only alias transfers stay pending.
+            conn.execute(sql_text(
+                "UPDATE orders SET payment_status = CASE "
+                "WHEN lower(payment) LIKE '%transf%' THEN 'pendiente' ELSE 'a_cobrar' END "
+                "WHERE payment_status = 'pendiente' AND payment_provider = ''"
+            ))
+
     def initialize(self):
         Base.metadata.create_all(self.engine)
+        self._migrate()
         with self.session() as s:
             # Version marker: imports the completed questionnaire once, then never
             # overwrites prices or FAQ edited from the panel.
@@ -255,17 +290,19 @@ class Database:
                     row.default_daily = i.get('stock_diario')
             if not seed:
                 s.add(Content(id='seed:2026-11-20-carta-v1', body=json.dumps({'seeded_at': time.time()})))
-            promo_seed = s.get(Content, 'seed:2026-11-25-promo-prueba')
-            if not promo_seed:
-                now = time.time()
-                local = datetime.fromtimestamp(now, ZoneInfo('America/Argentina/San_Juan'))
-                end = local.replace(hour=15, minute=0, second=0, microsecond=0)
-                if now < end.timestamp() and not s.get(Promo, 'prueba'):
-                    s.add(Promo(id='prueba', name='Prueba', product_id='combo3',
-                                discount_percent=15, starts_at=now, ends_at=end.timestamp(),
-                                active=True, position=0))
-                s.add(Content(id='seed:2026-11-25-promo-prueba',
-                              body=json.dumps({'seeded_at': now})))
+            # The demo promo is only for local development; never seed it in production.
+            if self.settings.app_env == 'local':
+                promo_seed = s.get(Content, 'seed:2026-11-25-promo-prueba')
+                if not promo_seed:
+                    now = time.time()
+                    local = datetime.fromtimestamp(now, ZoneInfo('America/Argentina/San_Juan'))
+                    end = local.replace(hour=15, minute=0, second=0, microsecond=0)
+                    if now < end.timestamp() and not s.get(Promo, 'prueba'):
+                        s.add(Promo(id='prueba', name='Prueba', product_id='combo3',
+                                    discount_percent=15, starts_at=now, ends_at=end.timestamp(),
+                                    active=True, position=0))
+                    s.add(Content(id='seed:2026-11-25-promo-prueba',
+                                  body=json.dumps({'seeded_at': now})))
             # A stopped process may have sent these messages; never replay blindly.
             for row in s.query(Outbox).filter_by(status='sending'):
                 row.status = 'uncertain'

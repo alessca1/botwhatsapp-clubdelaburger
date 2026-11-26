@@ -21,7 +21,7 @@ Que puedan ver la carta completa, entender los tamaños y precios, y abrir Whats
 - Las promos tienen combo, descuento, fecha de inicio y fin. Se muestran primeras en `/carta` con cronómetro y el bot las aplica mientras estén vigentes.
 - Bebidas cargadas en la carta, con precio a completar desde el panel.
 - Delivery propio hasta 10 km, a cotizar por km. Retiro en el salón.
-- Efectivo o transferencia. Alias Mathias1998.
+- Efectivo o transferencia. Alias Mathias1998. Link de pago de Mercado Pago opcional, con acreditación automática por webhook.
 - Los pedidos anticipados se abonan antes. Se toman desde las 10:00.
 - Salón con reserva, 50 personas, tragos, juegos, estacionamiento y eventos.
 - Sin TACC no; opción vegetariana sí. La Mexicana puede ir sin picante.
@@ -38,7 +38,7 @@ Editorial, nocturno, cálido y directo. Como una carta impresa de un club de bar
 
 ## Visual
 
-Papel crema, tinta negra, tomate, cheddar y oliva. Fraunces para la voz grande; Archivo para la información. Estructura de carta impresa: membrecía del club en el hero, grilla de platos, banda oscura de combos, lista de precios y bloque de instrucciones. El acento es la tipografía, no un efecto.
+Fondo noche, crema, lima ácido y tomate. Bricolage Grotesque para la voz grande; Chivo para la información y Chivo Mono para precios y datos. Estructura de carta de club after hours: wordmark con la línea “de la” en barra lima, logo oficial en el topbar y la tarjeta de socio, grilla de platos, banda clara de combos, precios en mono y bloque de instrucciones. El acento es la tipografía y el contraste, no los efectos.
 
 ## Restricciones
 

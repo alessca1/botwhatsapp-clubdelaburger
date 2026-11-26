@@ -31,6 +31,16 @@ services:
         sync: false
       - key: ZERNIO_WEBHOOK_SECRET
         sync: false
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+      - key: PUBLIC_BASE_URL
+        value: https://clubdelaburger-whatsapp.onrender.com
+      - key: MP_EXCLUDE_CARDS
+        value: "true"
+      - key: MP_LINK_EXPIRES_MINUTES
+        value: "60"
       - key: WHATSAPP_PHONE_NUMBER_ID
         value: club-2643179759
       - key: BOT_ENABLED

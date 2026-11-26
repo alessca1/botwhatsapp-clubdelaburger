@@ -64,6 +64,18 @@ function promoBasePrice(product) {
   const prices = (product.variants || []).map((variant) => variant.price).filter((price) => price != null);
   return prices.length ? Math.min(...prices) : null;
 }
+const PAYMENT_LABEL = {
+  pagado: 'Pagado', pendiente: 'Pago pendiente', a_cobrar: 'A cobrar',
+  rechazado: 'Pago rechazado', reembolsado: 'Reembolsado', revision: 'Revisar pago',
+};
+function paymentBadge(o) {
+  const status = o.payment_status || '';
+  if (!status) return '';
+  const cls = status === 'pagado' ? 'ok'
+    : status === 'pendiente' ? 'warn'
+    : status === 'a_cobrar' ? '' : 'danger';
+  return `<span class="tag ${cls}">${PAYMENT_LABEL[status] || esc(status)}</span>`;
+}
 function initials(value) {
   const clean = String(value || '').trim();
   if (!clean) return '?';
@@ -133,6 +145,7 @@ async function loadStatus() {
   if (s.bot_enabled) extras.push('<span class="status-main"><span class="status-dot open"></span>Bot activo</span>');
   else extras.push('<span class="status-warn">Bot apagado</span>');
   if (s.products_without_price) extras.push(`<span class="status-warn">${s.products_without_price} productos sin precio</span>`);
+  if (s.mercadopago_configured) extras.push('<span class="tag ok">Mercado Pago</span>');
   $('status').innerHTML = `<span class="status-main"><span class="status-dot ${dot}"></span>${state}</span>
     <span class="status-time">${esc(s.local_time)}${s.business_number_display ? ' · ' + esc(s.business_number_display) : ''}</span>
     ${extras.join('')}`;
@@ -175,8 +188,16 @@ function orderCard(o) {
   const receipt = o.receipt_received ? '<span class="tag ok">Comprobante</span>' : '';
   const fee = o.mode === 'delivery' && o.delivery_fee == null ? '<span class="tag warn">Envío a cotizar</span>' : '';
   const newTag = o.status === 'nuevo' ? '<span class="tag warn">Nuevo</span>' : '';
+  const payTag = paymentBadge(o);
   const actions = (NEXT[o.status] || []).map(([status, label], index) =>
     `<button class="btn ${index === 0 ? 'btn-primary' : 'btn-ghost'} btn-sm" data-order="${o.id}" data-status="${status}">${label}</button>`).join('');
+  const payBtn = o.payment_status !== 'pagado' && !['cancelado', 'entregado'].includes(o.status)
+    ? `<button class="btn btn-ghost btn-sm" data-paid="${o.id}">${o.payment_status === 'a_cobrar' ? 'Cobrado' : 'Marcar pagado'}</button>` : '';
+  const canLink = o.payment_status !== 'pagado' && !['cancelado', 'entregado'].includes(o.status)
+    && !(o.mode === 'delivery' && o.delivery_fee == null);
+  const linkLabel = o.payment_url ? 'Reenviar link' : 'Generar link';
+  const linkBtn = canLink && (o.payment_url || o.payment_provider === 'mercadopago')
+    ? `<button class="btn btn-ghost btn-sm" data-link="${o.id}">${linkLabel}</button>` : '';
   const feeBtn = o.mode === 'delivery' && !['entregado', 'cancelado'].includes(o.status)
     ? `<button class="btn btn-ghost btn-sm" data-fee="${o.id}" data-status="${o.status}">Envío $</button>` : '';
   const cancel = !['cancelado', 'entregado'].includes(o.status)
@@ -188,9 +209,9 @@ function orderCard(o) {
     <div class="order-customer"><strong>${esc(o.name || 'Sin nombre')}</strong><span>+${esc(o.phone || '')}</span></div>
     <ul class="order-items">${items}</ul>
     <div class="order-meta">${mode}</div>
-    <div class="order-meta">${ICON.card}<span>${esc(o.payment || 'Pago a confirmar')}</span>${receipt}${fee}</div>
+    <div class="order-meta">${ICON.card}<span>${esc(o.payment || 'Pago a confirmar')}</span>${payTag}${receipt}${fee}</div>
     ${newTag ? `<div class="order-tags">${newTag}</div>` : ''}
-    <div class="order-actions">${actions}${feeBtn}${cancel}${chat}</div>
+    <div class="order-actions">${actions}${payBtn}${linkBtn}${feeBtn}${cancel}${chat}</div>
   </article>`;
 }
 
@@ -198,7 +219,12 @@ $('board').addEventListener('click', async (e) => {
   const b = e.target.closest('button'); if (!b) return;
   try {
     if (b.dataset.chat) { switchTab('chats'); openChat(b.dataset.chat); return; }
-    if (b.dataset.fee) {
+    if (b.dataset.paid) {
+      if (!confirm('¿Marcar este pedido como pagado?')) return;
+      await api(`/admin/orders/${b.dataset.paid}/mark-paid`, { method: 'POST' });
+    } else if (b.dataset.link) {
+      await api(`/admin/orders/${b.dataset.link}/payment-link`, { method: 'POST' });
+    } else if (b.dataset.fee) {
       const value = prompt('Costo del envío (solo números):'); if (value === null) return;
       const fee = parseInt(value.replace(/\D/g, ''), 10); if (Number.isNaN(fee)) return;
       const status = b.dataset.status === 'nuevo' ? 'confirmado' : b.dataset.status;

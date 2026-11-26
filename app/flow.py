@@ -38,14 +38,16 @@ RE_DAY_WORDS = re.compile(r'\b(para|el|del|este|proximo|hoy|manana|pasado|lunes|
 
 
 class Flow:
-    def __init__(self, s, db, negocio, items, now_ts, llm=None, promos=None):
+    def __init__(self, s, db, negocio, items, now_ts, llm=None, settings=None, promos=None):
         self.s, self.db, self.negocio, self.items = s, db, negocio, items
         self.by_id = {i.id: i for i in items}
         self.schedule = Schedule(negocio)
         self.now_ts = now_ts
         self.now = self.schedule.local(now_ts)
         self.llm = llm
+        self.settings = settings
         self.promos = promos or []
+        self.payment_order_id = None
         self.replies = []
         self.flags = set()  # needs_human
 
@@ -238,6 +240,10 @@ class Flow:
                              f"{self.negocio.get('takeaway_note', '')}".strip())
             return self.say('\n'.join(parts) + '\n\n¿Querés hacer un pedido?',
                             [{'title': 'Hacer pedido', 'payload': 'pedir'}])
+        if re.search(r'\b(link|enlace)\b', t):
+            last = self._last_order(ctx)
+            if last and last.payment_url and last.payment_status != 'pagado':
+                return self.say(f'💳 Link de pago del pedido *#{last.number}*:\n{last.payment_url}')
         if RE_PAY.search(t) or t == 'pagos':
             return self.say(self._payment_text())
         if RE_HOURS.search(t) or t == 'horarios':
@@ -271,13 +277,30 @@ class Flow:
                 f'Último pedido: {self.schedule.last_order:%H:%M}. Pedidos anticipados desde las '
                 f'{self.schedule.intake:%H:%M}. Abrimos feriados; los martes cerramos.').strip()
 
+    def _mp_ready(self):
+        return bool(self.settings and self.settings.ready_for_mercadopago())
+
+    @staticmethod
+    def _looks_mp(method):
+        n = normalized(method)
+        return 'mercado pago' in n or 'mercadopago' in n or 'pago online' in n
+
+    def _payment_methods(self):
+        methods = [m for m in (self.negocio.get('payment_methods') or ['Efectivo'])
+                   if self._mp_ready() or not self._looks_mp(m)]
+        if self._mp_ready() and not any(self._looks_mp(m) for m in methods):
+            methods.append('Mercado Pago')
+        return methods or ['Efectivo']
+
     def _payment_text(self):
-        methods = ', '.join(self.negocio.get('payment_methods') or [])
+        methods = ', '.join(self._payment_methods())
         lines = [f'Podés pagar con: {methods}.']
         if self.negocio.get('transfer_alias'):
             holder = (f" (titular: {self.negocio['transfer_holder']})"
                       if self.negocio.get('transfer_holder') else '')
             lines.append(f"Alias para transferir: *{self.negocio['transfer_alias']}*{holder}.")
+        if self._mp_ready():
+            lines.append('También podés pagar online con Mercado Pago: el bot te manda el link y se acredita solo.')
         if self.negocio.get('advance_payment_required'):
             lines.append('Los pedidos anticipados se abonan antes.')
         if self.negocio.get('cash_change'):
@@ -361,7 +384,14 @@ class Flow:
 
     def _attachment(self, ctx):
         last = self._last_order(ctx)
-        if last and last.payment.lower().startswith('transf') and last.status not in {'entregado', 'cancelado'}:
+        if last and last.payment_provider == 'mercadopago' and last.status not in {'entregado', 'cancelado'}:
+            if last.payment_status == 'pagado':
+                self.say(f'¡Gracias! El pago del pedido #{last.number} ya está acreditado; '
+                         'no necesitás mandar comprobante 🙌')
+            else:
+                self.say(f'Estamos esperando que Mercado Pago acredite el pago del pedido #{last.number}. '
+                         'Apenas se acredite te aviso por acá; no hace falta mandar comprobante.')
+        elif last and last.payment.lower().startswith('transf') and last.status not in {'entregado', 'cancelado'}:
             last.receipt_received = True
             self.flags.add('needs_human')
             self.say(f'¡Gracias! Recibimos el comprobante del pedido #{last.number}. El equipo lo verifica 🙌')
@@ -560,9 +590,14 @@ class Flow:
         return [x for x in slots if used.get(x, 0) < cap]
 
     def _ask_payment(self, ctx):
-        methods = self.negocio.get('payment_methods') or ['Efectivo']
+        methods = self._payment_methods()
         ctx['step'] = 'payment'
-        self.say('¿Cómo vas a pagar?', [{'title': m[:20], 'payload': f'pay_{n}'} for n, m in enumerate(methods[:3])])
+        text = '¿Cómo vas a pagar?'
+        if any('transf' in normalized(m) for m in methods):
+            text += '\nTransferencia: al alias, con comprobante.'
+        if self._mp_ready():
+            text += '\nMercado Pago: link automático, se acredita solo.'
+        self.say(text, [{'title': m[:20], 'payload': f'pay_{n}'} for n, m in enumerate(methods[:3])])
 
     def _summary(self, ctx):
         lines, total = cart_text(ctx['cart'], self.by_id, price_for=self._price_for)
@@ -695,7 +730,7 @@ class Flow:
             self._ask_payment(ctx)
             return True
         if step == 'payment':
-            methods = self.negocio.get('payment_methods') or ['Efectivo']
+            methods = self._payment_methods()
             chosen = None
             m = re.fullmatch(r'pay_(\d)', t)
             if m and int(m.group(1)) < len(methods):
@@ -703,6 +738,8 @@ class Flow:
             for method in methods:
                 if not chosen and normalized(method)[:6] in t:
                     chosen = method
+            if not chosen and self._looks_mp(t):
+                chosen = next((x for x in methods if self._looks_mp(x)), None)
             if not chosen and 'transf' in t:
                 chosen = next((x for x in methods if 'transf' in normalized(x)), None)
             if not chosen:
@@ -788,8 +825,14 @@ class Flow:
                           'qty': line['qty'], 'note': note,
                           'price': self._price_for(item, line.get('variant_id')),
                           'variant_id': line.get('variant_id')})
+        payment_name = normalized(ctx['payment'])
+        is_mp = self._mp_ready() and self._looks_mp(ctx['payment'])
+        provider = ('mercadopago' if is_mp
+                    else ('transferencia' if 'transf' in payment_name else 'efectivo'))
+        payment_status = 'pendiente' if provider in {'mercadopago', 'transferencia'} else 'a_cobrar'
         order = Order(number=number, conversation_id=ctx['conversation_id'], service_date=sd.isoformat(),
                       status='nuevo', slot=ctx['slot'], mode=ctx['mode'], payment=ctx['payment'],
+                      payment_status=payment_status, payment_provider=provider,
                       total=total + (fee or 0), delivery_fee=fee,
                       data=self.db.pack({'name': ctx.get('name', ''), 'address': ctx.get('address', ''),
                                          'phone': ctx.get('wa_id', ''), 'items': items}),
@@ -804,18 +847,25 @@ class Flow:
             msg += 'Te confirmamos el costo del envío por acá (hasta 10 km). '
         msg += 'Te aviso cuando lo confirmemos y cuando esté en camino.'
         advance = sd > self.now.date() or not self.schedule.is_open(self.now)
+        needs_link = is_mp and not (order.mode == 'delivery' and fee is None)
         if advance:
             msg += '\n\n💳 Es un pedido anticipado y se abona antes. '
-            if self.negocio.get('transfer_alias'):
+            if is_mp:
+                msg += ('Te mando el link de pago de Mercado Pago por acá. ' if needs_link else
+                        'Cuando confirmemos el costo del envío te mando el link de pago de Mercado Pago. ')
+            elif self.negocio.get('transfer_alias'):
                 holder = (f" (titular: {self.negocio['transfer_holder']})"
                           if self.negocio.get('transfer_holder') else '')
                 msg += f"Podés transferir al alias *{self.negocio['transfer_alias']}*{holder} y mandarnos el comprobante."
             else:
                 msg += 'El equipo te pasa los datos para abonarlo.'
                 self.flags.add('needs_human')
-            if 'transf' not in normalized(order.payment):
+            if not is_mp and provider != 'transferencia':
                 self.flags.add('needs_human')
-        elif 'transf' in normalized(order.payment):
+        elif is_mp:
+            msg += ('\n\n💳 Te mando el link de pago de Mercado Pago por acá.' if needs_link else
+                    '\n\n💳 Cuando confirmemos el costo del envío te mando el link de pago de Mercado Pago.')
+        elif provider == 'transferencia':
             if self.negocio.get('transfer_alias'):
                 holder = (f" (titular: {self.negocio['transfer_holder']})"
                           if self.negocio.get('transfer_holder') else '')
@@ -824,5 +874,7 @@ class Flow:
             else:
                 msg += '\n\n💳 Te pasamos los datos para transferir por este chat.'
                 self.flags.add('needs_human')
+        if needs_link:
+            self.payment_order_id = order.id
         self.say(msg)
         self.flags.add('new_order')

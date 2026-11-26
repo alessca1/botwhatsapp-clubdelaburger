@@ -39,6 +39,25 @@ function countdown(endsAt) {
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
 }
 
+function promoUrgency(endsAt) {
+  const left = Math.max(0, Math.floor(endsAt - Date.now() / 1000));
+  if (left <= 10 * 60) return 'critical';
+  if (left <= 30 * 60) return 'urgent';
+  return 'normal';
+}
+
+function promoUrgencyLabel(urgency) {
+  if (urgency === 'critical') return 'Últimos minutos';
+  if (urgency === 'urgent') return 'Quedan';
+  return 'Termina en';
+}
+
+function promoProgress(promo) {
+  const total = Math.max(1, promo.ends_at - promo.starts_at);
+  const left = Math.max(0, promo.ends_at - Date.now() / 1000);
+  return Math.min(100, Math.max(0, (left / total) * 100));
+}
+
 function renderPromoBanner() {
   const banner = document.querySelector('#promoBanner');
   if (!banner) return;
@@ -54,8 +73,10 @@ function renderPromoBanner() {
   banner.hidden = false;
   banner.innerHTML = `<div class="promo-banner-inner"><div class="promo-rail">${promos.map((promo) => {
     const kicker = /^promo\b/i.test(promo.name) ? promo.name : `Promo ${promo.name}`;
+    const urgency = promoUrgency(promo.ends_at);
+    const urgentClass = urgency === 'critical' ? ' is-critical' : (urgency === 'urgent' ? ' is-urgent' : '');
     return `
-    <article class="promo-card" data-promo-id="${esc(promo.id)}">
+    <article class="promo-card${urgentClass}" data-promo-id="${esc(promo.id)}">
       <div class="promo-card-copy">
         <span class="promo-kicker">${esc(kicker)}</span>
         <h2>${promo.discount_percent}% OFF en ${esc(promo.product_name)}</h2>
@@ -63,7 +84,11 @@ function renderPromoBanner() {
       </div>
       <div class="promo-card-side">
         <div class="promo-price"><strong>${money(promo.price)}</strong><s>${money(promo.base_price)}</s></div>
-        <div class="promo-timer"><span>Termina en</span><b data-promo-timer="${esc(promo.id)}">${countdown(promo.ends_at)}</b></div>
+        <div class="promo-timer is-${urgency}" aria-hidden="true">
+          <span class="promo-timer-label">${promoUrgencyLabel(urgency)}</span>
+          <b data-promo-timer="${esc(promo.id)}">${countdown(promo.ends_at)}</b>
+        </div>
+        <div class="promo-progress" aria-hidden="true"><i data-promo-progress style="width:${promoProgress(promo).toFixed(1)}%"></i></div>
         <a class="promo-cta" href="#carta">Armar mi combo</a>
       </div>
     </article>`; }).join('')}</div></div>`;
@@ -86,6 +111,21 @@ function updatePromoTimers() {
     const promo = state.promos.find((item) => item.id === node.dataset.promoTimer);
     if (!promo) return;
     node.textContent = countdown(promo.ends_at);
+    const urgency = promoUrgency(promo.ends_at);
+    const timer = node.closest('.promo-timer');
+    if (timer) {
+      timer.classList.toggle('is-urgent', urgency === 'urgent');
+      timer.classList.toggle('is-critical', urgency === 'critical');
+      const label = timer.querySelector('.promo-timer-label');
+      if (label) label.textContent = promoUrgencyLabel(urgency);
+      const card = node.closest('.promo-card');
+      if (card) {
+        card.classList.toggle('is-urgent', urgency === 'urgent');
+        card.classList.toggle('is-critical', urgency === 'critical');
+      }
+      const progress = node.closest('.promo-card-side')?.querySelector('[data-promo-progress]');
+      if (progress) progress.style.width = promoProgress(promo).toFixed(1) + '%';
+    }
     if (promo.ends_at <= now) changed = true;
   });
   if (state.promos.some((promo) => promo.ends_at <= now)) {
@@ -226,10 +266,14 @@ function dishCard(product, index) {
   const actions = product.available
     ? `<div class="dish-actions"><button type="button" class="dish-add" data-add="${esc(product.id)}">Agregar al carrito</button><button type="button" class="dish-customize" data-customize="${esc(product.id)}">Personalizar</button></div>`
     : `<div class="dish-actions"><button type="button" class="dish-add" disabled>Agotado</button></div>`;
+  const customizeMedia = product.available
+    ? ` data-customize="${esc(product.id)}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Personalizar ${esc(product.name)}"`
+    : '';
   return `<article class="dish${product.available ? '' : ' is-sold-out'}" data-id="${esc(product.id)}">
-    <div class="dish-media">
+    <div class="dish-media${product.available ? ' is-customizable' : ''}"${customizeMedia}>
       ${image}
       <span class="dish-index" aria-hidden="true">${String(product.code).padStart(2, '0')}</span>
+      ${product.available ? '<span class="dish-media-hint" aria-hidden="true">Personalizar</span>' : ''}
       ${product.image_url ? '' : '<span class="photo-state">foto pendiente</span>'}
     </div>
     <div class="dish-body">
@@ -714,6 +758,15 @@ document.addEventListener('click', (event) => {
     const dialog = close.closest('dialog');
     if (dialog) dialog.close();
   }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const customize = event.target.closest('[data-customize]');
+  if (!customize) return;
+  event.preventDefault();
+  const product = state.byId.get(customize.dataset.customize);
+  if (product) openCustomize(product);
 });
 
 document.querySelectorAll('dialog').forEach((dialog) => {

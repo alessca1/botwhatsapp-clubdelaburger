@@ -11,6 +11,7 @@ from app.db import Conversation, Event, Outbox, Message, Content, Order, Audit, 
 from app.flow import Flow
 from app.llm import LLM
 from app.menu import load_items, money
+from app.payments import MercadoPago, MercadoPagoError
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +30,12 @@ class Bot:
         self.settings, self.db = settings, db
         self.llm = llm or LLM(settings, db)
         self.http = httpx.AsyncClient(timeout=httpx.Timeout(12, connect=5), follow_redirects=False)
+        self.mp = MercadoPago(settings)
         self.stopping = False
 
     async def close(self):
         await self.http.aclose()
+        await self.mp.close()
         await self.llm.close()
 
     def negocio(self, s):
@@ -93,6 +96,7 @@ class Bot:
 
     async def process_event(self, event_id, now=None):
         now = now or time.time()
+        payment_order_id = None
         with self.db.session() as s:
             event = s.get(Event, event_id)
             if not event or event.status != 'pending':
@@ -115,7 +119,8 @@ class Bot:
             promos = list(s.scalars(select(Promo).where(
                 Promo.active == True, Promo.starts_at <= now, Promo.ends_at > now)
                 .order_by(Promo.position, Promo.created.desc())))
-            flow = Flow(s, self.db, negocio, load_items(s), now, self.llm, promos=promos)
+            flow = Flow(s, self.db, negocio, load_items(s), now, self.llm,
+                        settings=self.settings, promos=promos)
             ctx = await flow.handle(ctx, payload.get('text', ''), payload.get('kind', 'text'),
                                     payload.get('name', ''))
             ctx['touched'] = now
@@ -124,8 +129,171 @@ class Bot:
                 conv.needs_human = True
             for reply in flow.replies:
                 self.enqueue(s, conv.id, reply['text'], reply.get('buttons'))
+            payment_order_id = flow.payment_order_id
             event.status = 'done'
             s.commit()
+        if payment_order_id:
+            try:
+                await self.send_payment_link(payment_order_id)
+            except Exception:
+                logger.exception('Mercado Pago link creation failed')
+                self._payment_link_failed(payment_order_id)
+
+    # ---------- Mercado Pago
+    def _flag_payment_issue(self, s, order, reason):
+        conv = s.get(Conversation, order.conversation_id)
+        if conv:
+            conv.needs_human = True
+        s.add(Audit(action=f'payment_review_{reason}', target=order.id))
+
+    def _payment_link_failed(self, order_id):
+        with self.db.session() as s:
+            order = s.get(Order, order_id)
+            if not order:
+                return
+            self._flag_payment_issue(s, order, 'link_failed')
+            self.enqueue(s, order.conversation_id,
+                         f'💳 No pudimos generar el link de pago del pedido *#{order.number}*. '
+                         'Te paso con una persona para coordinarlo.', kind='status')
+            s.commit()
+
+    async def send_payment_link(self, order_id, force=False):
+        if not self.mp.enabled():
+            raise ValueError('Mercado Pago no está configurado')
+        with self.db.session() as s:
+            order = s.get(Order, order_id)
+            if not order:
+                raise KeyError(order_id)
+            if order.payment_status == 'pagado':
+                raise ValueError('El pedido ya está pagado')
+            if order.status == 'cancelado':
+                raise ValueError('El pedido está cancelado')
+            if order.payment_url and not force:
+                return order
+            number, total = order.number, order.total
+            data = self.db.unpack(order.data)
+            description = ', '.join(f"{i['qty']}x {i['name']}" for i in data.get('items', []))
+            conversation_id = order.conversation_id
+        preference = await self.mp.create_preference(
+            order_id=order_id, number=number, total=total,
+            description=description, base_url=self.settings.public_base_url)
+        with self.db.session() as s:
+            order = s.get(Order, order_id)
+            if not order:
+                raise KeyError(order_id)
+            order.payment_provider = 'mercadopago'
+            order.payment_preference_id = preference['id']
+            order.payment_url = preference['url']
+            if order.payment_status == 'rechazado':
+                order.payment_status = 'pendiente'
+            if order.payment_status != 'pagado' and order.status != 'cancelado':
+                options = ('transferencia o saldo de Mercado Pago' if self.settings.mp_exclude_cards
+                           else 'transferencia, tarjeta o saldo de Mercado Pago')
+                self.enqueue(s, conversation_id,
+                             f'💳 *Pago online del pedido #{number}*\nTotal: {money(total)}\n'
+                             f'{preference["url"]}\n\n'
+                             f'Podés pagar con {options}. Apenas se acredite, te aviso por acá.',
+                             kind='status')
+            s.add(Audit(action='mercadopago_link_created', target=order.id))
+            s.commit()
+            return order
+
+    async def process_mp_payment(self, payment_id):
+        if not self.mp.enabled():
+            raise ValueError('Mercado Pago no está configurado')
+        try:
+            payment = await self.mp.get_payment(payment_id)
+        except MercadoPagoError as exc:
+            if exc.status_code == 404:
+                logger.warning('Mercado Pago payment %s not found', payment_id)
+                return
+            raise
+        status = str(payment.get('status') or '')
+        external = str(payment.get('external_reference') or '')
+        preference = str(payment.get('preference_id') or '')
+        amount = payment.get('transaction_amount')
+        currency = str(payment.get('currency_id') or '')
+        with self.db.session() as s:
+            order = s.get(Order, external) if external else None
+            if not order and preference:
+                order = s.scalar(select(Order).where(Order.payment_preference_id == preference))
+            if not order:
+                order = s.scalar(select(Order).where(Order.payment_id == str(payment_id)))
+            if not order:
+                s.add(Audit(action='mercadopago_unknown_payment', target=external or str(payment_id)))
+                s.commit()
+                return
+            if order.payment_status == 'pagado':
+                if order.payment_id != str(payment_id):
+                    if order.payment_id or order.payment_provider != 'mercadopago':
+                        self._flag_payment_issue(s, order, 'duplicate_payment')
+                    else:
+                        # The panel marked it paid manually before the webhook arrived.
+                        order.payment_id = str(payment_id)
+                        s.add(Audit(action='mercadopago_payment_confirmed_after_manual',
+                                    target=order.id))
+                s.commit()
+                return
+            amount_ok = (amount is not None
+                         and round(float(amount), 2) == round(float(order.total), 2)
+                         and currency == 'ARS')
+            if not amount_ok:
+                order.payment_id = str(payment_id)
+                order.payment_status = 'revision'
+                self._flag_payment_issue(s, order, 'amount_mismatch')
+                s.commit()
+                return
+            order.payment_id = str(payment_id)
+            order.payment_provider = 'mercadopago'
+            if status == 'approved':
+                order.payment_status = 'pagado'
+                order.paid_at = time.time()
+                s.add(Audit(action='mercadopago_payment_approved', target=order.id))
+                if order.status == 'cancelado':
+                    self._flag_payment_issue(s, order, 'paid_cancelled')
+                    self.enqueue(s, order.conversation_id,
+                                 f'Recibimos el pago del pedido *#{order.number}*, pero figura cancelado. '
+                                 'Te escribimos para resolverlo.', kind='status')
+                else:
+                    extra = ' El local lo está revisando.' if order.status == 'nuevo' else ''
+                    self.enqueue(s, order.conversation_id,
+                                 f'✅ Pago acreditado de tu pedido *#{order.number}*: '
+                                 f'{money(round(float(amount)))}. ¡Gracias!{extra}', kind='status')
+            elif status in {'pending', 'in_process', 'authorized'}:
+                order.payment_status = 'pendiente'
+                s.add(Audit(action=f'mercadopago_payment_{status}', target=order.id))
+            elif status in {'rejected', 'cancelled'}:
+                order.payment_status = 'rechazado'
+                retry = f'\nPodés intentar de nuevo: {order.payment_url}' if order.payment_url else ''
+                self.enqueue(s, order.conversation_id,
+                             f'❌ El pago del pedido *#{order.number}* no se acreditó.{retry}', kind='status')
+                s.add(Audit(action=f'mercadopago_payment_{status}', target=order.id))
+            elif status in {'refunded', 'charged_back'}:
+                order.payment_status = 'reembolsado'
+                self._flag_payment_issue(s, order, status)
+                self.enqueue(s, order.conversation_id,
+                             f'El pago del pedido *#{order.number}* fue reembolsado. '
+                             'Si tenés dudas, escribinos.', kind='status')
+                s.add(Audit(action=f'mercadopago_payment_{status}', target=order.id))
+            s.commit()
+
+    def mark_order_paid(self, order_id):
+        with self.db.session() as s:
+            order = s.get(Order, order_id)
+            if not order:
+                raise KeyError(order_id)
+            if order.status == 'cancelado':
+                raise ValueError('El pedido está cancelado')
+            if order.payment_status == 'pagado':
+                return order
+            order.payment_status = 'pagado'
+            order.paid_at = time.time()
+            order.payment_provider = order.payment_provider or 'manual'
+            self.enqueue(s, order.conversation_id,
+                         f'✅ Registramos el pago de tu pedido *#{order.number}*. ¡Gracias!', kind='status')
+            s.add(Audit(action='payment_marked_paid', target=order.id))
+            s.commit()
+            return order
 
     # ---------- staff actions
     def set_order_status(self, order_id, status, delivery_fee=None):
@@ -146,6 +314,11 @@ class Bot:
             elif order.status == 'cancelado' and status != 'cancelado':
                 stockmod.reserve(s, order.service_date, json.loads(order.consumption or '{}'))
             previous, order.status, order.updated = order.status, status, time.time()
+            if status == 'cancelado' and previous != 'cancelado':
+                if order.payment_status == 'pagado':
+                    self._flag_payment_issue(s, order, 'paid_cancelled')
+                elif order.payment_status == 'pendiente':
+                    self._flag_payment_issue(s, order, 'cancelled_with_pending_payment')
             negocio = self.negocio(s)
             template = STATUS_MESSAGES.get(status)
             notified = False

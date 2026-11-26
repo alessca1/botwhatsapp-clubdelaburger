@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import re
 import time
 from html import escape
@@ -18,10 +19,12 @@ from app.db import (Database, Conversation, Content, Event, Outbox, Message, Ord
                     ProductVariant, ProductImage, Insumo, DailyStock, Audit, Promo)
 from app.hours import DAYS, Schedule
 from app.menu import load_items, money, normalized, product_kind
+from app.payments import MercadoPago
 from app.service import Bot
 from app.zernio import ingest_zernio
 from app import stock as stockmod
 
+logger = logging.getLogger(__name__)
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 ORDER_STATUSES = ['nuevo', 'confirmado', 'en_cocina', 'listo', 'en_camino', 'entregado', 'cancelado']
 
@@ -122,7 +125,7 @@ def create_app(settings=None, run_worker=True, llm=None):
 
     @app.get('/carta/{name}')
     def carta_asset(name: str):
-        if name not in {'carta.css', 'carta.js', 'favicon.svg'}:
+        if name not in {'carta.css', 'carta.js', 'carta-nocturna.css', 'favicon.svg', 'logo-club.png'}:
             raise HTTPException(404)
         return FileResponse(STATIC / name)
 
@@ -215,6 +218,49 @@ def create_app(settings=None, run_worker=True, llm=None):
             return Response(row.data, media_type=row.content_type,
                             headers={'Cache-Control': 'public, max-age=3600'})
 
+    @app.get('/pago/{result}')
+    def payment_result(result: str):
+        pages = {
+            'ok': ('Pago recibido', '✅ Ya registramos tu pago.',
+                   'Volvé a WhatsApp para ver el estado de tu pedido.'),
+            'pendiente': ('Pago pendiente', 'Tu pago está pendiente de acreditación.',
+                          'Apenas Mercado Pago lo confirme, te avisamos por WhatsApp.'),
+            'error': ('Pago no completado', 'No se pudo completar el pago.',
+                      'Podés volver a intentarlo desde el link o escribirnos por WhatsApp.'),
+        }
+        if result not in pages:
+            raise HTTPException(404)
+        title, heading, body = pages[result]
+        with db.session() as s:
+            negocio = bot.negocio(s)
+        phone = str(negocio.get('business_number', ''))
+        wa = f'https://wa.me/{phone}' if phone else '/carta'
+        html = f"""<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{escape(title)}</title>
+<style>
+  :root {{ color-scheme: light; }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; min-height: 100vh; display: grid; place-items: center;
+         background: #f4ecd9; color: #171310; font-family: Georgia, 'Times New Roman', serif; }}
+  main {{ width: min(92vw, 520px); padding: 40px 34px; background: #fffaf0;
+          border: 1px solid #d8cbb3; box-shadow: 8px 8px 0 #171310; }}
+  .kicker {{ margin: 0 0 18px; font: 700 11px/1.4 Arial, sans-serif;
+             letter-spacing: .18em; text-transform: uppercase; color: #b5452f; }}
+  h1 {{ margin: 0 0 14px; font-size: clamp(30px, 7vw, 46px); line-height: .95; }}
+  p {{ font: 16px/1.55 Arial, sans-serif; color: #4c4438; }}
+  a {{ display: inline-block; margin-top: 20px; padding: 12px 18px; background: #b5452f;
+       color: #fffaf0; font: 700 14px/1 Arial, sans-serif; text-decoration: none; }}
+</style></head>
+<body><main>
+  <p class="kicker">El Club de la Burger</p>
+  <h1>{escape(heading)}</h1>
+  <p>{escape(body)}</p>
+  <a href="{escape(wa)}">Volver a WhatsApp</a>
+</main></body></html>"""
+        return HTMLResponse(html)
+
     @app.post('/webhooks/zernio')
     async def zernio_webhook(request: Request):
         if not settings.zernio_webhook_secret:
@@ -237,6 +283,34 @@ def create_app(settings=None, run_worker=True, llm=None):
             ingest_zernio(bot, payload)
         except (ValueError, TypeError, KeyError, AttributeError):
             raise HTTPException(400, 'Evento inválido')
+        return {'received': True}
+
+    @app.post('/webhooks/mercadopago')
+    async def mercadopago_webhook(request: Request):
+        if not settings.mp_webhook_secret:
+            raise HTTPException(403, 'Integración no configurada')
+        try:
+            payload = await request.json()
+        except (ValueError, TypeError):
+            raise HTTPException(400, 'Evento inválido')
+        if not isinstance(payload, dict):
+            raise HTTPException(400, 'Evento inválido')
+        data = payload.get('data') if isinstance(payload.get('data'), dict) else {}
+        data_id = str(data.get('id') or request.query_params.get('data.id')
+                      or request.query_params.get('id') or '')
+        topic = str(payload.get('type') or payload.get('topic')
+                    or request.query_params.get('type') or request.query_params.get('topic') or '')
+        if topic != 'payment' or not data_id:
+            return {'received': True}
+        signature = request.headers.get('x-signature', '')
+        request_id = request.headers.get('x-request-id', '')
+        if not MercadoPago.verify_signature(settings.mp_webhook_secret, signature, request_id, data_id):
+            raise HTTPException(403, 'Firma inválida')
+        try:
+            await bot.process_mp_payment(data_id)
+        except Exception:
+            logger.exception('Mercado Pago webhook failed')
+            raise HTTPException(502, 'No se pudo procesar el pago')
         return {'received': True}
 
     # ---------- panel
@@ -274,6 +348,7 @@ def create_app(settings=None, run_worker=True, llm=None):
                     'business_number_display': negocio.get('business_number_display', ''),
                     'phone_number_id': settings.whatsapp_phone_number_id,
                     'deepseek_configured': bool(settings.deepseek_api_key),
+                    'mercadopago_configured': settings.ready_for_mercadopago(),
                     'open_now': schedule.is_open(now), 'order_window': window.mode,
                     'service_date': window.service_date.isoformat() if window.service_date else None,
                     'local_time': now.strftime('%Y-%m-%d %H:%M'),
@@ -292,7 +367,10 @@ def create_app(settings=None, run_worker=True, llm=None):
                 data = db.unpack(o.data)
                 conv = s.get(Conversation, o.conversation_id)
                 out.append({'id': o.id, 'number': o.number, 'status': o.status, 'slot': o.slot, 'mode': o.mode,
-                            'payment': o.payment, 'total': o.total, 'delivery_fee': o.delivery_fee,
+                            'payment': o.payment, 'payment_status': o.payment_status,
+                            'payment_provider': o.payment_provider, 'payment_url': o.payment_url,
+                            'payment_id': o.payment_id, 'paid_at': o.paid_at,
+                            'total': o.total, 'delivery_fee': o.delivery_fee,
                             'receipt_received': o.receipt_received, 'created': o.created,
                             'conversation_id': o.conversation_id, 'has_chat': conv is not None,
                             'wa_name': conv.name if conv else '', **data})
@@ -303,14 +381,45 @@ def create_app(settings=None, run_worker=True, llm=None):
         delivery_fee: int | None = Field(default=None, ge=0, le=1_000_000)
 
     @app.post('/admin/orders/{order_id}/status', dependencies=[Depends(admin)])
-    def order_status(order_id: str, body: StatusBody):
+    async def order_status(order_id: str, body: StatusBody):
         try:
             order = bot.set_order_status(order_id, body.status, body.delivery_fee)
         except KeyError:
             raise HTTPException(404, 'Pedido inexistente')
         except stockmod.OutOfStock:
             raise HTTPException(409, 'No hay stock para reactivar este pedido')
+        if (body.delivery_fee is not None and order.payment_provider == 'mercadopago'
+                and order.payment_status != 'pagado' and order.status != 'cancelado'
+                and not order.payment_url):
+            try:
+                await bot.send_payment_link(order.id)
+            except Exception:
+                logger.exception('Mercado Pago link after delivery fee failed')
+                bot._payment_link_failed(order.id)
         return {'id': order.id, 'status': order.status}
+
+    @app.post('/admin/orders/{order_id}/mark-paid', dependencies=[Depends(admin)])
+    def mark_paid(order_id: str):
+        try:
+            order = bot.mark_order_paid(order_id)
+        except KeyError:
+            raise HTTPException(404, 'Pedido inexistente')
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        return {'id': order.id, 'payment_status': order.payment_status}
+
+    @app.post('/admin/orders/{order_id}/payment-link', dependencies=[Depends(admin)])
+    async def payment_link(order_id: str):
+        try:
+            order = await bot.send_payment_link(order_id, force=True)
+        except KeyError:
+            raise HTTPException(404, 'Pedido inexistente')
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        except Exception:
+            logger.exception('Mercado Pago link failed from panel')
+            raise HTTPException(502, 'No se pudo generar el link de pago')
+        return {'id': order.id, 'payment_url': order.payment_url}
 
     @app.get('/admin/stock', dependencies=[Depends(admin)])
     def stock(service_date: str = ''):
